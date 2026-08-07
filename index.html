@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1b2a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Test seco">
+<title>Registro de tests · seco</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+:root{
+  --bg:#0d1b2a; --panel:#152a3f; --panel2:#1c3651; --line:#28496b;
+  --ink:#eaf2fb; --dim:#9db4cd; --accent:#39c6a0; --warn:#f0b429; --bad:#e8615a;
+  --radius:12px; --tap:52px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  padding-bottom:calc(72px + env(safe-area-inset-bottom));
+  -webkit-text-size-adjust:100%;
+}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+
+header{
+  position:sticky;top:0;z-index:20;background:var(--bg);
+  padding:calc(8px + env(safe-area-inset-top)) 12px 8px;border-bottom:1px solid var(--line);
+}
+.topline{display:flex;gap:8px}
+.topline select,.topline input{
+  flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:10px;min-height:44px;
+}
+.banner{margin-top:8px;padding:8px 10px;border-radius:10px;font-size:14px}
+.banner.warn{background:#3b2f10;color:var(--warn);border:1px solid #6a5416}
+.banner.bad{background:#3b1a1a;color:var(--bad);border:1px solid #6a2a2a}
+
+main{padding:12px;max-width:820px;margin:0 auto}
+h2{font-size:18px;margin:0 0 4px}
+h3{font-size:15px;margin:18px 0 8px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+p.note{color:var(--dim);font-size:14px;margin:4px 0 12px}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:12px;margin-bottom:10px;width:100%;text-align:left;display:block}
+.card.tap:active{background:var(--panel2)}
+.card .head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.card .sub{color:var(--dim);font-size:13px;margin-top:2px}
+.pill{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
+  padding:4px 10px;font-size:13px;white-space:nowrap}
+.pill.ok{background:#12352c;border-color:#1d5b4a;color:var(--accent)}
+.pill.blocked{background:#3b1a1a;border-color:#6a2a2a;color:var(--bad)}
+.bar{height:4px;background:var(--panel2);border-radius:2px;margin-top:8px;overflow:hidden}
+.bar > i{display:block;height:100%;background:var(--accent)}
+
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+  padding:12px 14px;min-height:var(--tap);text-align:center;width:100%;margin-bottom:8px}
+.btn.primary{background:var(--accent);color:#06231c;border-color:var(--accent);font-weight:600}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad);border-color:#6a2a2a}
+.btnrow{display:flex;gap:8px}
+.btnrow .btn{margin-bottom:8px}
+
+.athlete{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:10px;margin-bottom:8px}
+.athlete.done{border-color:#1d5b4a}
+.athlete > .who{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.code{font-weight:700;letter-spacing:.04em}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:8px}
+.field label{display:block;font-size:12px;color:var(--dim);margin-bottom:4px}
+.inputline{display:flex;gap:6px;align-items:stretch}
+.inputline input{
+  flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);
+  border-radius:10px;padding:10px;min-height:var(--tap);font-size:18px;text-align:center;
+}
+.inputline input:focus{outline:2px solid var(--accent)}
+.step{width:46px;min-height:var(--tap);background:var(--panel2);border:1px solid var(--line);
+  border-radius:10px;font-size:22px;line-height:1}
+.step:active{background:var(--line)}
+.watch{width:56px;min-height:var(--tap);background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+.watch.running{background:var(--bad);border-color:var(--bad);color:#fff}
+.toggle{min-height:var(--tap);width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+.toggle.on{background:#12352c;border-color:#1d5b4a;color:var(--accent);font-weight:600}
+.levels{display:flex;gap:6px;flex-wrap:wrap}
+.levels button{flex:1;min-width:44px;min-height:var(--tap);background:var(--panel2);
+  border:1px solid var(--line);border-radius:10px;font-size:17px}
+.levels button.on{background:var(--accent);color:#06231c;font-weight:700}
+.rubric{font-size:12px;color:var(--dim);margin-top:6px}
+.asym{font-size:13px;margin-top:8px;color:var(--dim)}
+.asym.high{color:var(--warn)}
+textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+  padding:10px;min-height:44px;resize:vertical}
+details{margin-top:8px}
+summary{color:var(--dim);font-size:14px;padding:8px 0;cursor:pointer}
+
+.criterion{background:var(--panel2);border-left:3px solid var(--accent);border-radius:8px;
+  padding:10px;font-size:14px;color:var(--dim);margin-bottom:12px}
+.criterion.blocked{border-left-color:var(--bad)}
+
+nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;
+  background:var(--panel);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+nav button{flex:1;padding:10px 4px;font-size:12px;color:var(--dim);min-height:60px}
+nav button.on{color:var(--accent)}
+nav .ico{display:block;font-size:20px;line-height:1.2}
+nav .badge{display:inline-block;background:var(--warn);color:#3b2f10;border-radius:999px;
+  padding:0 6px;font-size:11px;font-weight:700;margin-left:4px}
+.back{color:var(--dim);padding:8px 0;margin-bottom:4px}
+pre.csv{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px;
+  font-size:11px;overflow:auto;max-height:240px;white-space:pre}
+</style>
+</head>
+<body>
+<header>
+  <div class="topline">
+    <select id="group" aria-label="Grupo"></select>
+    <input type="date" id="date" aria-label="Fecha">
+  </div>
+  <div id="banner"></div>
+</header>
+
+<main id="view"></main>
+
+<nav id="tabs">
+  <button data-tab="session" class="on"><span class="ico">📋</span>Sesión</button>
+  <button data-tab="athome"><span class="ico">🏠</span>En casa<span class="badge" id="badge" hidden></span></button>
+  <button data-tab="roster"><span class="ico">👥</span>Nadadoras</button>
+  <button data-tab="export"><span class="ico">📤</span>Exportar</button>
+</nav>
+
+<script src="catalog.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
