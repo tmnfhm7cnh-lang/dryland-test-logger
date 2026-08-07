@@ -379,7 +379,9 @@ function screenTestDetail(block, test) {
   frag.appendChild(crit);
 
   const prim = primaryMetrics(test);
-  const second = test.metrics.filter((m) => m.second);
+  // Video-derived metrics also live here, one tap away: My Jump Lab does not keep a
+  // recoverable series, so whatever it gives has to be typed in the moment it appears.
+  const second = test.metrics.filter((m) => m.second || m.atHome);
 
   for (const a of athletes) {
     const complete = prim.every((m) => getVal(ui.date, a.code, test.id, m.csv) !== '');
@@ -402,10 +404,15 @@ function screenTestDetail(block, test) {
     }
 
     const extra = el('details');
-    extra.appendChild(el('summary', { text: 'Más métricas, nota e intentos' }));
+    const hasVideo = second.some((m) => m.atHome);
+    extra.appendChild(el('summary', { text: hasVideo ? 'Más métricas, vídeo, nota e intentos' : 'Más métricas, nota e intentos' }));
     if (second.length) {
       const sf = el('div', { class: 'fields' });
-      for (const m of second) sf.appendChild(fieldFor(m, ui.date, a.code, ui.group, test));
+      for (const m of second) {
+        const f = fieldFor(m, ui.date, a.code, ui.group, test);
+        if (m.atHome) f.querySelector('label').textContent += m.tag ? ` · ${m.tag}` : ' · de vídeo';
+        sf.appendChild(f);
+      }
       extra.appendChild(sf);
     }
     const tk = testKey(ui.date, a.code, test.id);
@@ -477,13 +484,27 @@ function screenRoster() {
   frag.appendChild(el('h2', { text: 'Nadadoras' }));
   frag.appendChild(el('p', { class: 'note', text: 'Solo códigos. El mapa código ↔ nombre vive en papel, en tu carpeta, nunca aquí. El código se asigna por orden de aparición y no se reutiliza jamás.' }));
 
-  const add = el('button', { class: 'btn primary', type: 'button', text: `+ Añadir nadadora a ${GROUPS.find((g) => g.id === ui.group).label}` });
+  const group = GROUPS.find((g) => g.id === ui.group);
+  const addOne = () => db.athletes.push({ code: nextCode(), group: ui.group, active: true });
+
+  const add = el('button', { class: 'btn primary', type: 'button', text: `+ Añadir nadadora a ${group.label}` });
   add.addEventListener('click', () => {
-    db.athletes.push({ code: nextCode(), group: ui.group, active: true });
+    addOne();
     save();
     render();
   });
   frag.appendChild(add);
+
+  const missing = group.size - activeAthletes(ui.group).length;
+  if (missing > 0) {
+    const bulk = el('button', { class: 'btn', type: 'button', text: `+ Completar el grupo: crear ${missing} códigos de golpe` });
+    bulk.addEventListener('click', () => {
+      for (let i = 0; i < missing; i++) addOne();
+      save();
+      render();
+    });
+    frag.appendChild(bulk);
+  }
 
   for (const g of GROUPS) {
     const list = db.athletes.filter((a) => a.group === g.id).sort((a, b) => a.code.localeCompare(b.code));
