@@ -10,10 +10,14 @@
  *   frentes/natacion-artistica/programacion/03-test-y-monitoreo/plan-de-medicion.md
  */
 
+// `start` is the first athlete number of the group's reserved range, and it must match the
+// printed field sheets in privado/hojas-de-campo/ (Alevín 01-12, Infantil 13-22, Junior 23-28).
+// Codes are permanent and globally unique: the group an athlete trains with lives in the
+// `categoria` column of the CSV, never in the code, because athletes change group.
 const GROUPS = [
-  { id: 'alevin', label: 'Alevín', size: 12 },
-  { id: 'infantil', label: 'Infantil', size: 10 },
-  { id: 'junior', label: 'Junior', size: 6 },
+  { id: 'alevin', label: 'Alevín', size: 12, start: 1 },
+  { id: 'infantil', label: 'Infantil', size: 10, start: 13 },
+  { id: 'junior', label: 'Junior', size: 6, start: 23 },
 ];
 
 // Fixed test order, least to most fatiguing. Measuring mobility after a circuit
@@ -223,7 +227,10 @@ const TESTS = [
     label: 'Elevaciones colgada',
     phase: 'fuerza',
     who: 'Criterio de Daniel',
-    blocked: 'No hay barra fija en la sala. Sin barra no hay línea base de P1: captura el sustituto tumbada y no mezcles las dos series.',
+    // Rectified 2026-08-11: there IS an espaldera in September, so P1 does get a baseline.
+    // The apparatus is the thing that changes (espaldera now, possibly barra from October), and
+    // a change of apparatus invalidates a direct comparison — hence the `instrumento` column.
+    apparatus: ['espaldera', 'barra'],
     criterion: 'Criterio oficial: 12 elevaciones por encima de 90° respecto al tronco + 5" de carpa.',
     metrics: [
       { csv: 'reps', label: 'Reps sobre 90°', type: 'reps', unit: 'reps' },

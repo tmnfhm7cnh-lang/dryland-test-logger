@@ -7,13 +7,19 @@
  */
 
 const STORE_KEY = 'dryland-test-logger/v1';
-const CSV_HEADER = 'fecha,atleta,categoria,prueba,metrica,valor,unidad,intentos,evaluador,observaciones';
+// 11 columns since 2026-08-11: `instrumento` was added between `intentos` and `evaluador`.
+// The schema belongs to privado/mediciones-2026-27.csv, not to this app — if that file gains a
+// column, this string has to follow it or the export lands misaligned.
+const CSV_HEADER = 'fecha,atleta,categoria,prueba,metrica,valor,unidad,intentos,instrumento,evaluador,observaciones';
 const CSV_NAME = 'mediciones-2026-27.csv';
 
 /* ---------------------------------------------------------------- storage */
 
 function blankDB() {
-  return { version: 1, evaluator: 'DJ', athletes: [], records: {}, notes: {}, attempts: {}, skipped: {}, lastExport: 0, ui: {} };
+  // `codesUsed` is the graveyard: every number ever handed out, kept even when the athlete is
+// gone from `athletes`. Without it, restoring an old backup could hand a dead code to a new
+// swimmer and two different girls would share a row key for the season.
+  return { version: 1, evaluator: 'DJ', athletes: [], codesUsed: [], records: {}, notes: {}, attempts: {}, skipped: {}, apparatus: {}, lastExport: 0, ui: {} };
 }
 
 function load() {
@@ -56,10 +62,56 @@ function activeAthletes(groupId) {
   return db.athletes.filter((a) => a.group === groupId && a.active !== false).sort((a, b) => a.code.localeCompare(b.code));
 }
 
-function nextCode() {
-  const used = db.athletes.map((a) => parseInt(a.code.slice(4), 10)).filter((n) => !isNaN(n));
-  const next = used.length ? Math.max(...used) + 1 : 1;
-  return `ATL-${String(next).padStart(2, '0')}`;
+// Each group has a reserved range that matches the printed field sheets, so the code the app
+// hands out is the same one written on the paper no matter which group is registered first.
+// Codes are never reused: a number freed by a dropout stays dead.
+function usedNumbers() {
+  const nums = db.athletes.map((a) => parseInt(String(a.code).slice(4), 10));
+  for (const n of db.codesUsed || []) nums.push(parseInt(n, 10));
+  return new Set(nums.filter((n) => !isNaN(n)));
+}
+
+function nextCode(groupId) {
+  const fmt = (n) => `ATL-${String(n).padStart(2, '0')}`;
+  const used = usedNumbers();
+  const g = GROUPS.find((x) => x.id === groupId);
+  if (g) {
+    for (let n = g.start; n <= g.start + g.size - 1; n++) if (!used.has(n)) return fmt(n);
+  }
+  // Range full: an athlete the printed sheets did not foresee. Land past every code ever used
+  // rather than borrowing the next group's range.
+  let n = used.size ? Math.max(...used) + 1 : 1;
+  while (used.has(n)) n++;
+  return fmt(n);
+}
+
+// Creating an athlete is what burns the code — asking for one does not.
+function claimCode(groupId) {
+  const code = nextCode(groupId);
+  (db.codesUsed ||= []).push(parseInt(code.slice(4), 10));
+  return code;
+}
+
+// The apparatus is a property of the session, not of the athlete: on paper it is one field in
+// the sheet header. Same key for every apparatus-bearing test on that date and group.
+const apparatusKey = (date, groupId) => `${date}|${groupId}`;
+
+function apparatusFor(date, groupId) {
+  return db.apparatus[apparatusKey(date, groupId)] || '';
+}
+
+// Measurements of an apparatus-bearing test that were saved without saying which apparatus.
+// In December a series that moves without knowing whether it was the swimmer or the bar is noise.
+function missingApparatus() {
+  const out = [];
+  for (const r of Object.values(db.records)) {
+    const t = TEST_BY_ID[r.t];
+    if (!t || !t.apparatus) continue;
+    if (apparatusFor(r.d, r.g)) continue;
+    const k = apparatusKey(r.d, r.g);
+    if (!out.includes(k)) out.push(k);
+  }
+  return out;
 }
 
 // Declared rounding: whole centimetres, seconds to one decimal, degrees in 5s.
@@ -146,7 +198,9 @@ function buildCSV() {
     const attempts = db.attempts[testKey(r.d, r.a, r.t)] || test.attempts || 1;
     lines.push([
       r.d, r.a, r.g, test.csv, r.m, r.v,
-      metric ? metric.unit : '', attempts, db.evaluator || 'DJ', notes.join(' · '),
+      metric ? metric.unit : '', attempts,
+      test.apparatus ? apparatusFor(r.d, r.g) : '',
+      db.evaluator || 'DJ', notes.join(' · '),
     ].map(csvCell).join(','));
   }
   return lines.join('\n') + '\n';
@@ -378,6 +432,28 @@ function screenTestDetail(block, test) {
   if (rubric) crit.appendChild(el('div', { class: 'rubric', html: rubric.rubric.join('<br>') }));
   frag.appendChild(crit);
 
+  if (test.apparatus) {
+    const chosen = apparatusFor(ui.date, ui.group);
+    const box = el('div', { class: 'criterion' + (chosen ? '' : ' blocked') });
+    box.appendChild(el('div', { html: chosen ? '<strong>Aparato: ' + chosen + '</strong>' : '<strong>🔴 Di en qué aparato se mide, antes de apuntar</strong>' }));
+    box.appendChild(el('div', { text: 'Va a la columna instrumento del CSV. Una elevación en espaldera y una en barra no son el mismo gesto: sin este dato, en diciembre no sabrás si cambió la nadadora o el aparato.' }));
+    const pills = el('div', { class: 'fields' });
+    for (const opt of test.apparatus) {
+      pills.appendChild(el('button', {
+        class: 'pill' + (chosen === opt ? ' ok' : ''), type: 'button', text: opt,
+        onclick: () => {
+          const k = apparatusKey(ui.date, ui.group);
+          if (db.apparatus[k] === opt) delete db.apparatus[k];
+          else db.apparatus[k] = opt;
+          save();
+          render();
+        },
+      }));
+    }
+    box.appendChild(pills);
+    frag.appendChild(box);
+  }
+
   const prim = primaryMetrics(test);
   // Video-derived metrics also live here, one tap away: My Jump Lab does not keep a
   // recoverable series, so whatever it gives has to be typed in the moment it appears.
@@ -482,10 +558,11 @@ function screenAtHome() {
 function screenRoster() {
   const frag = document.createDocumentFragment();
   frag.appendChild(el('h2', { text: 'Nadadoras' }));
-  frag.appendChild(el('p', { class: 'note', text: 'Solo códigos. El mapa código ↔ nombre vive en papel, en tu carpeta, nunca aquí. El código se asigna por orden de aparición y no se reutiliza jamás.' }));
+  frag.appendChild(el('p', { class: 'note', text: 'Solo códigos. El mapa código ↔ nombre vive en papel, en tu carpeta, nunca aquí. Cada grupo tiene su rango reservado —Alevín 01-12, Infantil 13-22, Junior 23-28— igual que las hojas impresas, y un código no se reutiliza jamás.' }));
 
   const group = GROUPS.find((g) => g.id === ui.group);
-  const addOne = () => db.athletes.push({ code: nextCode(), group: ui.group, active: true });
+  frag.appendChild(el('div', { class: 'criterion', text: `${group.label} usa de ATL-${String(group.start).padStart(2, '0')} a ATL-${String(group.start + group.size - 1).padStart(2, '0')}. Asígnalos en el pase de lista, todos de golpe y antes de medir nada.` }));
+  const addOne = () => db.athletes.push({ code: claimCode(ui.group), group: ui.group, active: true });
 
   const add = el('button', { class: 'btn primary', type: 'button', text: `+ Añadir nadadora a ${group.label}` });
   add.addEventListener('click', () => {
@@ -587,6 +664,31 @@ function screenExport() {
 
   frag.appendChild(el('h3', { text: 'Vista previa' }));
   frag.appendChild(el('pre', { class: 'csv', text: buildCSV().split('\n').slice(0, 40).join('\n') || CSV_HEADER }));
+
+  // Two taps plus a confirm, and it names what it is about to destroy. There was no way at all to
+  // clear this app before 2026-08-11, which left the fake data of a rehearsal stuck on the phone.
+  frag.appendChild(el('h3', { text: 'Empezar de cero' }));
+  frag.appendChild(el('div', { class: 'criterion blocked', text: 'Borra las mediciones, las nadadoras y las notas de este teléfono. No hay deshacer: exporta antes si hay algo que quieras conservar.' }));
+  const wipe = el('button', { class: 'btn ghost', type: 'button', text: '🗑 Borrar todo' });
+  let armed = false;
+  wipe.addEventListener('click', () => {
+    if (!armed) {
+      armed = true;
+      wipe.textContent = `Pulsa otra vez para borrar ${total} mediciones y ${db.athletes.length} nadadoras`;
+      wipe.className = 'btn primary';
+      return;
+    }
+    if (!confirm(`Se borran ${total} mediciones y ${db.athletes.length} nadadoras. ¿Seguro?`)) {
+      armed = false;
+      render();
+      return;
+    }
+    Object.assign(db, blankDB());
+    localStorage.removeItem(STORE_KEY);
+    save();
+    go({ tab: 'roster', blockId: null, testId: null });
+  });
+  frag.appendChild(wipe);
   return frag;
 }
 
@@ -606,6 +708,11 @@ function render() {
   $banner.innerHTML = '';
   const pend = unexportedCount();
   if (pend > 0) $banner.appendChild(el('div', { class: 'banner warn', text: `${pend} mediciones sin exportar. Comparte el CSV al acabar la sesión.` }));
+  const noApp = missingApparatus();
+  if (noApp.length) {
+    const where = noApp.map((k) => k.split('|').reverse().join(' ')).join(', ');
+    $banner.appendChild(el('div', { class: 'banner warn', text: `Falta declarar el aparato de colgada en: ${where}. Sin él, esas filas salen con la columna instrumento vacía.` }));
+  }
 
   $view.innerHTML = '';
   if (ui.tab === 'session') {

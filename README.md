@@ -17,11 +17,20 @@ twelve swimmers wait. No server, no accounts, no network calls, no dependencies.
   `frentes/natacion-artistica/privado/mediciones-2026-27.csv`:
 
   ```
-  fecha,atleta,categoria,prueba,metrica,valor,unidad,intentos,evaluador,observaciones
+  fecha,atleta,categoria,prueba,metrica,valor,unidad,intentos,instrumento,evaluador,observaciones
   ```
 
   One row per measurement, long format. On iOS the export opens the share sheet, which is how
   the file reaches Files → OneDrive. Elsewhere it falls back to a plain download.
+
+  The export is always the **whole** dataset, header included — never a delta. Saving it twice to
+  the same OneDrive folder produces `mediciones-2026-27 1.csv`, ` 2`…; the most recent wins.
+
+  `instrumento` arrived on 2026-08-11 and only applies to tests that declare an `apparatus`
+  (today just `elevaciones_colgada`: espaldera in September, possibly barra from October). It is a
+  property of the *session*, not of the athlete — one tap covers every swimmer measured that day,
+  exactly like the single APARATO field in the header of the paper sheet. The app refuses to stay
+  quiet about it: rows saved without an apparatus raise a banner until it is declared.
 
 ## Privacy
 
@@ -29,6 +38,21 @@ Athletes exist as codes (`ATL-01`…). The app has no field for a name and no wa
 The code ↔ name map lives on paper, per `frentes/natacion-artistica/privado/LEEME.md`.
 Nothing is transmitted: all state sits in `localStorage` on the device until a CSV is exported
 by hand.
+
+### Codes
+
+Each group owns a reserved range that mirrors the printed field sheets — Alevín `01`–`12`,
+Infantil `13`–`22`, Junior `23`–`28` — declared as `start` in `GROUPS`. The app fills a group's
+range in order, so the code it hands out matches the paper whichever group is registered first.
+Before 2026-08-11 it handed out *highest + 1* globally, which meant registering Junior first gave
+those swimmers `ATL-01`… while the sheet in hand said `ATL-23`…
+
+A code is never reused. `codesUsed` keeps every number ever assigned, so a number does not come
+back to life when an athlete is removed or an old backup is restored. If a group's range fills up,
+the next code lands past every number ever used rather than borrowing the next group's range.
+
+The code says nothing about the group on purpose: swimmers move up a category, so the group lives
+in the CSV's `categoria` column, which is allowed to change. The code is the one thing that never does.
 
 ## Rounding
 
@@ -44,6 +68,7 @@ degrees snapped to the nearest 5.
 | `app.js` | Storage, widgets, screens, CSV export |
 | `sw.js` | Offline cache. Bump `CACHE` whenever any file changes, or phones keep the old version |
 | `manifest.webmanifest`, `icon.svg` | Home-screen install |
+| `tools/test.mjs` | Runs `app.js` and `catalog.js` in Node against a stub DOM |
 
 The catalogue is the only file that should need editing when a test or a metric changes.
 `csv` values inside it are Spanish on purpose: they are written verbatim into a database whose
@@ -58,6 +83,22 @@ installed, the throwaway PowerShell listener used during development is enough:
 $root='.'; $l=New-Object System.Net.HttpListener; $l.Prefixes.Add('http://localhost:8765/'); $l.Start()
 ```
 
+## Tests
+
+Node is installed on this machine since 2026-08-08, so the logic is checked by running it rather
+than by reading it. The harness loads the real `app.js` and `catalog.js` into a stub DOM and asserts
+the CSV shape, the code ranges and their overflow cases, the apparatus column, the wipe, and that
+every screen renders:
+
+```bash
+node tools/test.mjs ../../natacion-artistica/privado/mediciones-2026-27.csv
+```
+
+The argument is optional; given, it also asserts `CSV_HEADER` still equals the first line of the
+schema that owns it. **Run it with the argument whenever that schema changes** — the 2026-08-11
+`instrumento` column had already been added to the schema while the app still exported ten columns,
+and nothing would have caught it before the day of the baseline test.
+
 ## Deploying
 
 Needs an HTTPS origin for "Add to Home Screen" and for the service worker to register.
@@ -67,9 +108,10 @@ private and holds everything else.
 
 ## Known limits
 
-- The iOS share-sheet export path could not be verified on this machine; on desktop Chrome
-  `navigator.canShare({files})` is false and the code falls back to a download. Test it on the
-  actual iPhone before 2026-09-10.
+- ~~The iOS share-sheet export path could not be verified~~ — verified on the iPhone on
+  2026-08-10: the share sheet opens and the CSV reaches OneDrive. Watch the destination folder,
+  though: the OneDrive extension reopens the last-used location, and the first export landed in the
+  app's own source folder instead of `privado/exportaciones-app/`.
 - Safari can evict a web app's storage. The app nags whenever there are unexported rows; the
   CSV in OneDrive is the real backup, not the phone.
 - `icon.svg` only. iOS prefers a PNG `apple-touch-icon`; without it the home-screen icon may

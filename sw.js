@@ -1,5 +1,5 @@
 /* Offline shell. Bump CACHE when any file below changes. */
-const CACHE = 'dryland-test-logger-v1';
+const CACHE = 'dryland-test-logger-v2';
 const SHELL = ['./', 'index.html', 'catalog.js', 'app.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', (e) => {
