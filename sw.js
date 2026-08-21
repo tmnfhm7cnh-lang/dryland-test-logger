@@ -1,9 +1,19 @@
 /* Offline shell. Bump CACHE when any file below changes. */
-const CACHE = 'dryland-test-logger-v2';
-const SHELL = ['./', 'index.html', 'catalog.js', 'app.js', 'manifest.webmanifest', 'icon.svg'];
+const CACHE = 'dryland-test-logger-v3';
+
+/* Without these the app does not run: if one is missing the install must fail loudly. */
+const CORE = ['./', 'index.html', 'catalog.js', 'app.js'];
+/* Cosmetic. A missing icon must never cost the offline cache — that happened with
+   icon.svg from 2026-08-07 to 2026-08-21: addAll rejects on a single 404, the install
+   never completed, and the app silently needed the network to open. */
+const EXTRAS = ['manifest.webmanifest', 'icon.svg', 'icon-180.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(CORE).then(() => Promise.all(EXTRAS.map((u) => c.add(u).catch(() => {})))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {

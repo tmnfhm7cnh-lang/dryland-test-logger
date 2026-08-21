@@ -192,5 +192,25 @@ console.log('\n== 7. el aviso rojo obsoleto de P1 ya no existe ==');
 check('elevaciones_colgada sin blocked', ev(`!!TEST_BY_ID['elevaciones_colgada'].blocked`), false);
 check('y con aparatos declarados', ev(`TEST_BY_ID['elevaciones_colgada'].apparatus`), ['espaldera', 'barra']);
 
+console.log('\n== 8. todo archivo al que apunta la app existe en disco ==');
+// icon.svg estuvo referenciado y ausente del 2026-08-07 al 2026-08-21. cache.addAll rechaza
+// entero ante un solo 404, asi que el service worker nunca llego a instalarse y la app dejo
+// de funcionar sin red sin avisar de nada. Esta comprobacion es lo que lo habria cazado.
+const swSrc = fs.readFileSync(path.join(DIR, 'sw.js'), 'utf8');
+const listed = (name) => {
+  const m = swSrc.match(new RegExp(`const ${name} = \\[([^\\]]*)\\]`));
+  return m ? [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]) : [];
+};
+const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
+const manifest = JSON.parse(fs.readFileSync(path.join(DIR, 'manifest.webmanifest'), 'utf8'));
+const referenced = new Set([
+  ...listed('CORE'), ...listed('EXTRAS'),
+  ...[...html.matchAll(/(?:href|src)="([^"#:]+)"/g)].map((m) => m[1]),
+  ...manifest.icons.map((i) => i.src),
+].filter((f) => f !== './'));
+const missing = [...referenced].filter((f) => !fs.existsSync(path.join(DIR, f)));
+check('ningun archivo referenciado falta', missing, []);
+check('el apple-touch-icon es PNG', /rel="apple-touch-icon" href="[^"]+\.png"/.test(html), true);
+
 console.log(fails ? `\n${fails} COMPROBACIONES FALLIDAS` : '\ntodas las comprobaciones pasan');
 process.exit(fails ? 1 : 0);

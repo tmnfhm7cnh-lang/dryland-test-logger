@@ -210,7 +210,9 @@ async function shareFile(name, text, mime) {
   const file = new File([text], name, { type: mime });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: name });
+      // No title: iOS treats it as a second, textual item to share, and "Save to Files"
+      // writes it next to the CSV as texto.txt holding just the file name (seen 2026-08-21).
+      await navigator.share({ files: [file] });
       return true;
     } catch (err) {
       if (err && err.name === 'AbortError') return false;
