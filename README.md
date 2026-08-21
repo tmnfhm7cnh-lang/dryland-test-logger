@@ -66,8 +66,8 @@ degrees snapped to the nearest 5.
 | `index.html` | Shell and styles |
 | `catalog.js` | Test catalogue: tests, metrics, units, CSV identifiers, rubrics, session blocks |
 | `app.js` | Storage, widgets, screens, CSV export |
-| `sw.js` | Offline cache. Bump `CACHE` whenever any file changes, or phones keep the old version |
-| `manifest.webmanifest`, `icon.svg` | Home-screen install |
+| `sw.js` | Offline cache. Bump `CACHE` whenever any file changes, or phones keep the old version. `CORE` must all exist — a missing one fails the install on purpose; `EXTRAS` are added with a `catch` so a missing icon cannot cost the offline mode again |
+| `manifest.webmanifest`, `icon.svg`, `icon-180.png` | Home-screen install. iOS only honours a PNG `apple-touch-icon`; the SVG stays for the browser tab and the manifest |
 | `tools/test.mjs` | Runs `app.js` and `catalog.js` in Node against a stub DOM |
 
 The catalogue is the only file that should need editing when a test or a metric changes.
@@ -112,8 +112,12 @@ private and holds everything else.
   2026-08-10: the share sheet opens and the CSV reaches OneDrive. Watch the destination folder,
   though: the OneDrive extension reopens the last-used location, and the first export landed in the
   app's own source folder instead of `privado/exportaciones-app/`.
+- ~~The app worked online only~~ — fixed on 2026-08-21. `icon.svg` was listed in the service
+  worker shell and had not existed since 2026-08-07; `cache.addAll()` rejects the whole
+  operation on a single 404, so the install never completed. The cache stayed empty and
+  `getRegistrations()` returned `[]` — verified in a browser against the deployed origin, four
+  days before the app was due to be used in a sports hall. Check 8 in `tools/test.mjs` now
+  asserts that every file the app points at exists on disk.
 - Safari can evict a web app's storage. The app nags whenever there are unexported rows; the
   CSV in OneDrive is the real backup, not the phone.
-- `icon.svg` only. iOS prefers a PNG `apple-touch-icon`; without it the home-screen icon may
-  fall back to a screenshot.
 - No editing history: changing a value overwrites it. The exported CSV is the audit trail.
