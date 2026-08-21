@@ -5,6 +5,11 @@ twelve swimmers wait. No server, no accounts, no network calls, no dependencies.
 
 ## What it does
 
+- **Room clock.** A full-screen stopwatch with digits readable across a sports hall, opened from
+  the session tab and meant for a second device — the iPad on a bench — that nobody touches. It
+  writes nothing. A partner with no device can produce a count and a moment, never a duration, so
+  every hold test becomes "read the number when the criterion breaks and call it out", and twelve
+  swimmers are measured in two waves instead of twelve turns. Holds a screen wake lock while open.
 - Pick a group (Alevín / Infantil / Junior), a date and a session block.
 - Each block lists its tests **sorted by fatigue** — mobility → control → strength → power →
   endurance — because measuring mobility after a circuit gives a false number.

@@ -18,6 +18,12 @@
   --radius:12px; --tap:52px;
 }
 *{box-sizing:border-box}
+/* iOS zooms on a double tap, and a double tap is exactly what tapping + twice or
+   stopping the watch looks like. manipulation drops that gesture and its 300 ms
+   wait while leaving pinch-to-zoom alone, so the page can still be enlarged.
+   touch-action is not inherited, so it goes on the root, on body and on every tap
+   target rather than in one place. */
+html,body,button,select,input,textarea,label,nav,.step,.watch,.pill{touch-action:manipulation}
 html,body{margin:0;padding:0}
 body{
   background:var(--bg); color:var(--ink);
@@ -26,7 +32,10 @@ body{
   -webkit-text-size-adjust:100%;
 }
 button,select,input,textarea{font:inherit;color:inherit}
-button{cursor:pointer;border:none;background:none}
+button{cursor:pointer;border:none;background:none;
+  /* tapping + fast otherwise selects the glyph and pops the magnifier */
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent}
 
 header{
   position:sticky;top:0;z-index:20;background:var(--bg);
@@ -115,6 +124,23 @@ nav .badge{display:inline-block;background:var(--warn);color:#3b2f10;border-radi
 .back{color:var(--dim);padding:8px 0;margin-bottom:4px}
 pre.csv{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px;
   font-size:11px;overflow:auto;max-height:240px;white-space:pre}
+
+/* Room clock: one clock the whole room reads, on a device nobody touches.
+   A partner cannot produce a duration without a clock, so every hold test
+   turns into a moment read off this screen. */
+#clock{position:fixed;inset:0;z-index:100;background:var(--bg);display:none;
+  flex-direction:column;align-items:center;justify-content:center;
+  padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+#clock.on{display:flex}
+#clock .face{flex:1;width:100%;display:flex;align-items:center;justify-content:center;
+  line-height:1;font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+#clock .secs{font-size:min(46vw,58vh);font-weight:700;letter-spacing:-.03em}
+#clock .tenths{font-size:min(14vw,18vh);font-weight:700;color:var(--accent);margin-left:.06em}
+#clock.idle .secs{color:var(--dim)}
+#clock .hint{color:var(--dim);font-size:15px;padding:0 16px 10px;text-align:center}
+#clock .bar2{display:flex;gap:10px;padding:0 16px 16px;width:100%;max-width:520px}
+#clock .bar2 button{flex:1;min-height:56px;border-radius:12px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--ink);font-size:16px}
 </style>
 </head>
 <body>
@@ -127,6 +153,17 @@ pre.csv{background:var(--panel2);border:1px solid var(--line);border-radius:10px
 </header>
 
 <main id="view"></main>
+
+<div id="clock" class="idle">
+  <div class="face" id="clockFace">
+    <span class="secs" id="clockSecs">0</span><span class="tenths" id="clockTenths">.0</span>
+  </div>
+  <div class="hint">Toca el número para arrancar y parar. Nadie más toca esta pantalla.</div>
+  <div class="bar2">
+    <button type="button" id="clockZero">Poner a cero</button>
+    <button type="button" id="clockExit">Salir</button>
+  </div>
+</div>
 
 <nav id="tabs">
   <button data-tab="session" class="on"><span class="ico">📋</span>Sesión</button>

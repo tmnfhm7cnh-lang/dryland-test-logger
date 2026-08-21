@@ -363,6 +363,56 @@ function fieldFor(metric, date, athlete, groupId, test) {
   return box;
 }
 
+/* ------------------------------------------------------------- room clock */
+
+/* One clock the whole room reads, on a device nobody touches — the iPad on a bench.
+   A partner with no device can produce a count and a moment, never a duration, so
+   every hold test becomes "read the number when the criterion breaks and call it
+   out". Nothing here writes data: it is a clock, not a screen of the app. */
+const roomClock = { t0: 0, acc: 0, running: false, timer: null, lock: null };
+
+function roomClockPaint() {
+  const ms = roomClock.acc + (roomClock.running ? Date.now() - roomClock.t0 : 0);
+  const tenths = Math.floor(ms / 100);
+  document.getElementById('clockSecs').textContent = Math.floor(tenths / 10);
+  document.getElementById('clockTenths').textContent = '.' + (tenths % 10);
+}
+
+function roomClockToggle() {
+  if (roomClock.running) {
+    roomClock.acc += Date.now() - roomClock.t0;
+    roomClock.running = false;
+    clearInterval(roomClock.timer);
+    roomClock.timer = null;
+  } else {
+    roomClock.t0 = Date.now();
+    roomClock.running = true;
+    roomClock.timer = setInterval(roomClockPaint, 50);
+  }
+  document.getElementById('clock').classList.toggle('idle', !roomClock.running);
+  roomClockPaint();
+}
+
+function roomClockZero() {
+  roomClock.acc = 0;
+  roomClock.t0 = Date.now();
+  roomClockPaint();
+}
+
+async function roomClockOpen() {
+  stopWatch();
+  document.getElementById('clock').classList.add('on');
+  roomClockPaint();
+  // A sleeping iPad mid-wave loses the measurement of everyone still holding.
+  try { roomClock.lock = await navigator.wakeLock.request('screen'); } catch (e) { roomClock.lock = null; }
+}
+
+function roomClockClose() {
+  if (roomClock.running) roomClockToggle();
+  document.getElementById('clock').classList.remove('on');
+  if (roomClock.lock) { roomClock.lock.release().catch(() => {}); roomClock.lock = null; }
+}
+
 /* ----------------------------------------------------------------- screens */
 
 function screenBlocks() {
@@ -371,6 +421,11 @@ function screenBlocks() {
   const frag = document.createDocumentFragment();
   frag.appendChild(el('h2', { text: 'Qué se captura hoy' }));
   frag.appendChild(el('p', { class: 'note', text: `${athletes.length} nadadoras activas en ${GROUPS.find((g) => g.id === ui.group).label}. Elige el bloque de la sesión.` }));
+
+  const clockBtn = el('button', { class: 'btn', type: 'button', text: '⏱ Reloj de sala' });
+  clockBtn.addEventListener('click', roomClockOpen);
+  frag.appendChild(clockBtn);
+  frag.appendChild(el('p', { class: 'note', text: 'Para las pruebas de aguante: se abre en el iPad, se apoya donde lo vean todas y no lo toca nadie. Arrancan a la vez y cada compañera canta el código y el número cuando se rompe el criterio.' }));
 
   if (!athletes.length) {
     frag.appendChild(el('div', { class: 'criterion', text: 'Todavía no hay nadadoras en este grupo. Ve a la pestaña Nadadoras y añádelas: el código se asigna por orden de aparición, nunca por el nombre.' }));
@@ -728,6 +783,16 @@ function render() {
   else $view.appendChild(screenExport());
   window.scrollTo(0, 0);
 }
+
+document.getElementById('clockFace').addEventListener('click', roomClockToggle);
+document.getElementById('clockZero').addEventListener('click', roomClockZero);
+document.getElementById('clockExit').addEventListener('click', roomClockClose);
+// iOS drops the wake lock when the app goes to the background; take it back.
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible') return;
+  if (!document.getElementById('clock').classList.contains('on') || roomClock.lock) return;
+  try { roomClock.lock = await navigator.wakeLock.request('screen'); } catch (e) { roomClock.lock = null; }
+});
 
 $group.addEventListener('change', () => go({ group: $group.value, blockId: null, testId: null }));
 $date.addEventListener('change', () => go({ date: $date.value || todayISO(), pinDate: $date.value !== todayISO() }));

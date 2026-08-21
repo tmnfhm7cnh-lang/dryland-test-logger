@@ -50,6 +50,7 @@ const store = new Map();
 const byId = {};
 for (const id of ['view', 'group', 'date', 'tabs', 'badge', 'banner']) byId[id] = makeNode(id === 'group' || id === 'date' ? 'select' : 'div');
 
+const docListeners = {};
 const doc = {
   createElement: makeNode,
   createDocumentFragment: () => makeNode('fragment'),
@@ -57,6 +58,8 @@ const doc = {
   querySelector: () => makeNode(),
   querySelectorAll: () => [],
   body: makeNode('body'),
+  visibilityState: 'visible',
+  addEventListener: (ev, fn) => { docListeners[ev] = fn; },
 };
 
 const sandbox = {
