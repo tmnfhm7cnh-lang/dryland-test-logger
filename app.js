@@ -267,27 +267,47 @@ function go(patch) {
 
 /* --------------------------------------------------------------- widgets */
 
-let watch = null;
+/* Varios cronometros a la vez, uno por casilla (2026-09-15).
+   Antes habia uno solo y arrancar el segundo paraba el primero Y le escribia su valor,
+   asi que no se podian medir dos aguantes simultaneos: en un grupo de doce, eso es la
+   mitad de la sesion. Ahora cada boton lleva el suyo y solo se para el que se toca.
+   Un unico ticker los pinta todos, para que no haya N intervalos desincronizados. */
+const watches = new Map(); // btn -> { input, commit, t0, }
+let watchTicker = null;
 
-function stopWatch() {
-  if (!watch) return;
-  clearInterval(watch.timer);
-  watch.btn.classList.remove('running');
-  watch.btn.textContent = '⏱';
-  const secs = Math.round(((Date.now() - watch.t0) / 1000) * 10) / 10;
-  watch.input.value = secs;
-  watch.commit(secs);
-  watch = null;
+function paintWatches() {
+  const now = Date.now();
+  for (const [, w] of watches) w.input.value = ((now - w.t0) / 1000).toFixed(1);
+}
+
+function stopWatch(btn) {
+  const w = watches.get(btn);
+  if (!w) return;
+  watches.delete(btn);
+  if (!watches.size && watchTicker !== null) {
+    clearInterval(watchTicker);
+    watchTicker = null;
+  }
+  btn.classList.remove('running');
+  btn.textContent = '⏱';
+  const secs = Math.round(((Date.now() - w.t0) / 1000) * 10) / 10;
+  w.input.value = secs;
+  w.commit(secs);
+}
+
+/* Cualquier repintado se lleva por delante los botones, asi que antes de repintar se
+   paran todos y se anota lo que llevaran: un cronometro huerfano escribiria en una
+   casilla que ya no esta en pantalla. */
+function stopAllWatches() {
+  for (const btn of [...watches.keys()]) stopWatch(btn);
 }
 
 function startWatch(btn, input, commit) {
-  stopWatch();
-  watch = { btn, input, commit, t0: Date.now(), timer: null };
+  if (watches.has(btn)) return;
+  watches.set(btn, { input, commit, t0: Date.now() });
   btn.classList.add('running');
   btn.textContent = '⏹';
-  watch.timer = setInterval(() => {
-    input.value = ((Date.now() - watch.t0) / 1000).toFixed(1);
-  }, 100);
+  if (watchTicker === null) watchTicker = setInterval(paintWatches, 100);
 }
 
 function numberField(metric, value, commit) {
@@ -316,7 +336,7 @@ function numberField(metric, value, commit) {
   const line = el('div', { class: 'inputline' });
   if (metric.type === 'seconds') {
     const btn = el('button', { class: 'watch', type: 'button', text: '⏱', title: 'Cronómetro' });
-    btn.addEventListener('click', () => (watch && watch.btn === btn ? stopWatch() : startWatch(btn, input, commit)));
+    btn.addEventListener('click', () => (watches.has(btn) ? stopWatch(btn) : startWatch(btn, input, commit)));
     line.append(btn, input);
   } else {
     line.append(
@@ -400,7 +420,7 @@ function roomClockZero() {
 }
 
 async function roomClockOpen() {
-  stopWatch();
+  stopAllWatches();
   document.getElementById('clock').classList.add('on');
   roomClockPaint();
   // A sleeping iPad mid-wave loses the measurement of everyone still holding.
@@ -752,7 +772,7 @@ function screenExport() {
 /* ----------------------------------------------------------------- render */
 
 function render() {
-  stopWatch();
+  stopAllWatches();
   $group.innerHTML = '';
   for (const g of GROUPS) $group.appendChild(el('option', { value: g.id, text: g.label, selected: g.id === ui.group }));
   $date.value = ui.date;

@@ -29,6 +29,7 @@ const makeNode = (tag = 'div') => {
       return {
         toggle: (c, on) => { const s = new Set(n._class.split(' ').filter(Boolean)); on ? s.add(c) : s.delete(c); n._class = [...s].join(' '); },
         add: (c) => { const s = new Set(n._class.split(' ').filter(Boolean)); s.add(c); n._class = [...s].join(' '); },
+        remove: (c) => { const s = new Set(n._class.split(' ').filter(Boolean)); s.delete(c); n._class = [...s].join(' '); },
       };
     },
     appendChild(c) { this.children.push(c); return c; },
@@ -72,7 +73,7 @@ const sandbox = {
   },
   navigator: { serviceWorker: undefined },
   location: { protocol: 'file:' },
-  console, setTimeout, clearTimeout, Date, Math, JSON, parseInt, parseFloat, isNaN, String, Number, Object, Array, Set, alert: () => {}, confirm: () => true,
+  console, setTimeout, clearTimeout, setInterval, clearInterval, Date, Math, JSON, parseInt, parseFloat, isNaN, String, Number, Object, Array, Map, Set, alert: () => {}, confirm: () => true,
   URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
   File: class {},
 };
@@ -190,6 +191,54 @@ screen = paint('screenExport()');
 check('exportar ofrece borrar todo', /Borrar todo/.test(screen), true);
 ev(`go({tab:'roster'}); go({tab:'export'}); go({tab:'athome'}); go({tab:'session'})`);
 check('las cuatro pestañas renderizan', true, true);
+
+console.log('\n== 6 ter. varios cronometros a la vez (2026-09-15) ==');
+// Habia uno solo: arrancar el segundo paraba el primero Y le escribia su valor en la casilla,
+// asi que dos aguantes simultaneos eran imposibles. Con doce ninas eso es media sesion.
+ev(`stopAllWatches();
+globalThis.__t = { calls: [] };
+globalThis.mkField = (name) => {
+  const line = numberField({ type: 'seconds' }, '', (v) => __t.calls.push([name, v]));
+  return { btn: line.children[0], input: line.children[1] };
+};
+globalThis.F1 = mkField('F1'); globalThis.F2 = mkField('F2'); globalThis.F3 = mkField('F3');
+F1.btn.click(); F2.btn.click(); F3.btn.click();`);
+
+check('tres corriendo a la vez', ev('watches.size'), 3);
+check('los tres botones muestran parar', ev('[F1,F2,F3].map(f=>f.btn.textContent)'), ['⏹', '⏹', '⏹']);
+check('ninguno ha anotado nada todavia', ev('__t.calls'), []);
+check('un solo ticker para todos', ev('watchTicker !== null'), true);
+
+// Tiempos conocidos, escritos en el reloj interno de cada uno.
+ev(`watches.get(F1.btn).t0 = Date.now() - 12400;
+watches.get(F2.btn).t0 = Date.now() - 35000;
+watches.get(F3.btn).t0 = Date.now() - 8100;`);
+ev('F2.btn.click()'); // la segunda rompe la posicion antes que nadie
+
+check('parar uno deja los otros dos corriendo', ev('watches.size'), 2);
+check('y solo anota el suyo', ev('__t.calls.map((c) => c[0])'), ['F2']);
+check('con su tiempo, no el de otro', ev('Math.abs(__t.calls[0][1] - 35) < 0.15'), true);
+check('el que para vuelve a ⏱', ev('F2.btn.textContent'), '⏱');
+check('y pierde la clase running', ev('F2.btn.className.includes("running")'), false);
+check('los otros dos siguen en ⏹', ev('[F1,F3].map((f) => f.btn.textContent)'), ['⏹', '⏹']);
+// Lo que rompia antes: el valor de uno aterrizaba en la casilla de otro.
+ev('paintWatches()');
+check('cada casilla pinta su propio tiempo, no el del vecino',
+  ev('[Math.abs(F1.input.value - 12.4) < 0.15, Math.abs(F3.input.value - 8.1) < 0.15]'), [true, true]);
+check('y la del que paro conserva el suyo', ev('Math.abs(F2.input.value - 35) < 0.15'), true);
+check('el ticker sigue vivo mientras quede alguno', ev('watchTicker !== null'), true);
+
+// Lo que pasa al repintar: render() para todos y anota lo que llevaran, porque un cronometro
+// huerfano escribiria en una casilla que ya no esta en pantalla.
+ev('stopAllWatches()');
+check('parar todos anota los dos que quedaban', ev('__t.calls.map((c) => c[0])'), ['F2', 'F1', 'F3']);
+check('cada uno con su propio tiempo', ev('[Math.abs(__t.calls[1][1]-12.4)<0.15, Math.abs(__t.calls[2][1]-8.1)<0.15]'), [true, true]);
+check('no queda ninguno corriendo', ev('watches.size'), 0);
+check('y el ticker se apaga', ev('watchTicker'), null);
+
+// Tocar dos veces el mismo boton es arrancar y parar, no arrancar dos veces.
+ev(`__t.calls = []; F1.btn.click(); F1.btn.click();`);
+check('doble toque en el mismo boton arranca y para', ev('[watches.size, __t.calls.length]'), [0, 1]);
 
 console.log('\n== 7. el aviso rojo obsoleto de P1 ya no existe ==');
 check('elevaciones_colgada sin blocked', ev(`!!TEST_BY_ID['elevaciones_colgada'].blocked`), false);

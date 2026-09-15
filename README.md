@@ -10,6 +10,13 @@ twelve swimmers wait. No server, no accounts, no network calls, no dependencies.
   writes nothing. A partner with no device can produce a count and a moment, never a duration, so
   every hold test becomes "read the number when the criterion breaks and call it out", and twelve
   swimmers are measured in two waves instead of twelve turns. Holds a screen wake lock while open.
+- **Per-field stopwatches, as many at once as there are swimmers holding.** The ⏱ next to any
+  seconds field starts its own; starting another does not touch the ones already running, and
+  stopping one writes only that one. Until 2026-09-15 there was a single global stopwatch and
+  starting a second **stopped the first and committed its value**, which made the "two waves, all
+  hold together" protocol impossible to record in the app — with twelve swimmers, that is half a
+  session. Any repaint stops them all and commits what they had, because a stopwatch left running
+  against a field that has left the screen would write into nothing.
 - Pick a group (Alevín / Infantil / Junior), a date and a session block.
 - Each block lists its tests **sorted by fatigue** — mobility → control → strength → power →
   endurance — because measuring mobility after a circuit gives a false number.
@@ -74,6 +81,7 @@ degrees snapped to the nearest 5.
 | `sw.js` | Offline cache. Bump `CACHE` whenever any file changes, or phones keep the old version. `CORE` must all exist — a missing one fails the install on purpose; `EXTRAS` are added with a `catch` so a missing icon cannot cost the offline mode again |
 | `manifest.webmanifest`, `icon.svg`, `icon-180.png` | Home-screen install. iOS only honours a PNG `apple-touch-icon`; the SVG stays for the browser tab and the manifest |
 | `tools/test.mjs` | Runs `app.js` and `catalog.js` in Node against a stub DOM |
+| `tools/serve.mjs` | Static server, no dependencies, for checking the app in a real browser |
 
 The catalogue is the only file that should need editing when a test or a metric changes.
 `csv` values inside it are Spanish on purpose: they are written verbatim into a database whose
@@ -81,19 +89,25 @@ schema predates this app.
 
 ## Running it locally
 
-Any static server works. There is no build step. On this machine, with no Node and no Python
-installed, the throwaway PowerShell listener used during development is enough:
+Any static server works — there is no build step — but the repository ships one so that a change
+can be checked in a real browser and not only against the stub DOM:
 
-```powershell
-$root='.'; $l=New-Object System.Net.HttpListener; $l.Prefixes.Add('http://localhost:8765/'); $l.Start()
+```bash
+node tools/serve.mjs        # http://localhost:8090, optional port argument
 ```
+
+The stub in `tools/test.mjs` cannot tell whether a button repaints or a touch lands where it
+should; this can. `.claude/launch.json` has it as `dryland-test-logger-preview`.
+
+*(This section used to say the machine had no Node and offered a throwaway PowerShell listener.
+Node has been installed since 2026-08-08 — the Tests section below already relied on it.)*
 
 ## Tests
 
 Node is installed on this machine since 2026-08-08, so the logic is checked by running it rather
 than by reading it. The harness loads the real `app.js` and `catalog.js` into a stub DOM and asserts
-the CSV shape, the code ranges and their overflow cases, the apparatus column, the wipe, and that
-every screen renders:
+the CSV shape, the code ranges and their overflow cases, the apparatus column, the wipe, the
+simultaneous stopwatches, and that every screen renders:
 
 ```bash
 node tools/test.mjs ../../natacion-artistica/privado/mediciones-2026-27.csv
@@ -113,6 +127,9 @@ private and holds everything else.
 
 ## Known limits
 
+- **Stopping a stopwatch does not repaint the screen**, so that athlete's `pendiente` badge and the
+  `7/12` counter do not update until something else triggers a render. The value is stored
+  correctly — only the indicator lags. Predates the 2026-09-15 stopwatch rewrite.
 - ~~The iOS share-sheet export path could not be verified~~ — verified on the iPhone on
   2026-08-10: the share sheet opens and the CSV reaches OneDrive. Watch the destination folder,
   though: the OneDrive extension reopens the last-used location, and the first export landed in the
