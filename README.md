@@ -22,7 +22,11 @@ twelve swimmers wait. No server, no accounts, no network calls, no dependencies.
   endurance — because measuring mobility after a circuit gives a false number.
 - Open a test and you get every athlete in that group with only the fields captured poolside,
   plus a `7/12` counter. The screen is organised **per test, not per athlete**, so it matches
-  rotating small groups through one station.
+  rotating small groups through one station. **Tapping a field never scrolls the screen.** Until
+  2026-09-17, every tap re-rendered the whole app and jumped back to the top — harmless with the
+  first couple of athletes, but with twelve of them athlete 7 tapping her RPE sent athlete 8 back
+  to the top of the list, looking like a missed tap. The jump only belongs to an actual navigation
+  (switching tab, block or test); an in-place edit on the same screen keeps the scroll position.
 - Video-derived values (My Jump Lab jump height, bridge angles, V angle) are hidden from the
   poolside screens and queue up in the **En casa** tab with a pending badge.
 - Export writes a CSV whose header matches the season database that already exists at

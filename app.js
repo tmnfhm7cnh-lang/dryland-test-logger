@@ -263,6 +263,9 @@ function go(patch) {
   Object.assign(ui, patch);
   persistUI();
   render();
+  // Only an actual navigation (tab/group/date/block/test change) scrolls to top. A field
+  // edit on the current screen calls render() directly, below, and must not — see there.
+  window.scrollTo(0, 0);
 }
 
 /* --------------------------------------------------------------- widgets */
@@ -801,7 +804,6 @@ function render() {
   } else if (ui.tab === 'athome') $view.appendChild(screenAtHome());
   else if (ui.tab === 'roster') $view.appendChild(screenRoster());
   else $view.appendChild(screenExport());
-  window.scrollTo(0, 0);
 }
 
 document.getElementById('clockFace').addEventListener('click', roomClockToggle);
