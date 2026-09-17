@@ -48,6 +48,15 @@ const RUBRIC_SUPPORT = [
   '2 · Mano agarrada',
 ];
 
+// Added 2026-09-17: Daniel decided Alevín still lacks the maturity for the paired,
+// self-timed circuit on the official level tests. Today he runs each swimmer's own
+// level test himself and records only the verdict — no cm, no seconds. This is a
+// call-of-the-day, not a permanent change: continuous metrics come back once the
+// group matures. Reused across every level-test metric below instead of the plain
+// `flag` type, because a flag conflates "not judged yet" with "no": a rubric with
+// two options keeps "sin marcar" distinguishable from an explicit "no apto".
+const RUBRIC_APTO = ['0 · No apto', '1 · Apto (criterio oficial)'];
+
 /*
  * metric.type drives the input widget:
  *   reps | count -> stepper      seconds -> stopwatch + field
@@ -106,6 +115,7 @@ const TESTS = [
     criterion:
       'Puente con criterio válido y subida de una pierna estirada. Mismo protocolo de foto que el puente: mismo punto, misma altura de cámara.',
     metrics: [
+      { csv: 'apto', label: 'Resultado', type: 'level', unit: 'nivel', rubric: RUBRIC_APTO },
       { csv: 'foto_lateral', label: 'Foto hecha', type: 'flag', unit: 'si/no' },
       { csv: 'tiempo', label: 'Mantenimiento', type: 'seconds', unit: 's', second: true },
       { csv: 'altura_pie_der', label: 'Altura pie der.', type: 'cm', unit: 'cm', atHome: true },
@@ -184,6 +194,7 @@ const TESTS = [
     criterion:
       'Mantener la pierna a 90° o más delante, al lado y atrás, con cada pierna. Alevín 2: 8". Infantil: 12". Se permite apoyar una mano. Atrás es siempre la peor y la que más informa.',
     metrics: [
+      { csv: 'apto', label: 'Resultado', type: 'level', unit: 'nivel', rubric: RUBRIC_APTO },
       { csv: 'aguante_delante_der', label: 'Delante der.', type: 'seconds', unit: 's' },
       { csv: 'aguante_delante_izq', label: 'Delante izq.', type: 'seconds', unit: 's' },
       { csv: 'aguante_lado_der', label: 'Lado der.', type: 'seconds', unit: 's' },
@@ -215,6 +226,7 @@ const TESTS = [
     criterion:
       'Criterio oficial: 5 flexiones con codos pegados a las costillas y extensión completa, máximo 1 incompleta. Quien no hace ninguna: el dato útil es la altura del plano inclinado o los segundos de excéntrica, nunca un 0.',
     metrics: [
+      { csv: 'apto', label: 'Resultado', type: 'level', unit: 'nivel', rubric: RUBRIC_APTO },
       { csv: 'reps', label: 'Reps válidas', type: 'reps', unit: 'reps' },
       { csv: 'altura_plano', label: 'Altura del plano', type: 'cm', unit: 'cm' },
       { csv: 'excentrica', label: 'Excéntrica controlada', type: 'seconds', unit: 's', second: true },
@@ -261,12 +273,44 @@ const TESTS = [
     criterion:
       '10 repeticiones en un máximo de 20 s, 90° de rodilla, rodillas sin pasar las puntas, extensión completa. Altura mínima 20 cm (un palmo). Es potencia repetida, no salto máximo.',
     metrics: [
+      { csv: 'apto', label: 'Resultado', type: 'level', unit: 'nivel', rubric: RUBRIC_APTO },
       { csv: 'video', label: 'Vídeo hecho', type: 'flag', unit: 'si/no' },
       { csv: 'saltos_validos_20s', label: 'Saltos válidos en 20"', type: 'count', unit: 'saltos' },
       { csv: 'tiempo_10_reps', label: 'Tiempo de las 10', type: 'seconds', unit: 's' },
       { csv: 'altura_mejor_salto', label: 'Altura del mejor salto', type: 'cm', unit: 'cm', atHome: true, tag: 'myjumplab' },
       { csv: 'reps_sobre_20cm', label: 'Saltos sobre 20 cm', type: 'count', unit: 'saltos', atHome: true, tag: 'myjumplab' },
       { csv: 'fallos_tecnicos', label: 'Fallos técnicos', type: 'count', unit: 'reps', atHome: true },
+    ],
+  },
+  {
+    // Added 2026-09-17: Alevín 2's own official test #5, missing until now because the
+    // catalogue only had Alevín 1's fase-1 content (flexión, squat_jump). Today Alevín
+    // splits by level for the first time.
+    id: 'burpees',
+    csv: 'burpees',
+    label: '8 burpees + flexión de tríceps',
+    phase: 'potencia',
+    who: 'Criterio de Daniel',
+    criterion:
+      '8 repeticiones completas, máximo 1 incompleta. Salto con pies juntos de más de un palmo (20 cm). Lumbar rígida. Prueba oficial de Alevín 2 — no la hace Alevín 1.',
+    metrics: [
+      { csv: 'apto', label: 'Resultado', type: 'level', unit: 'nivel', rubric: RUBRIC_APTO },
+      { csv: 'reps_completas', label: 'Reps completas', type: 'reps', unit: 'reps', second: true },
+    ],
+  },
+  {
+    // Added 2026-09-17, same reason as burpees: Alevín 2's official test #7.
+    id: 'dominadas',
+    csv: 'dominadas',
+    label: 'Dominadas pronación y supinación',
+    phase: 'fuerza',
+    who: 'Criterio de Daniel',
+    criterion:
+      'Colgada con pies sin apoyo. Una dominada en pronación hasta pasar la barbilla la barra + aguantar 5" con la barbilla por encima, piernas juntas y pies en punta. Repetir en supinación + 5". Cada dominada parte de máximo 10° de flexión de codo. Prueba oficial de Alevín 2 — no la hace Alevín 1.',
+    metrics: [
+      { csv: 'apto', label: 'Resultado', type: 'level', unit: 'nivel', rubric: RUBRIC_APTO },
+      { csv: 'tiempo_pronacion', label: 'Aguante pronación', type: 'seconds', unit: 's', second: true },
+      { csv: 'tiempo_supinacion', label: 'Aguante supinación', type: 'seconds', unit: 's', second: true },
     ],
   },
   {
@@ -298,19 +342,27 @@ const TEST_BY_ID = Object.fromEntries(TESTS.map((t) => [t.id, t]));
 const ENTRY_BLOCKS = [
   { id: 'alevin-s1', group: 'alevin', label: 'Sesión 1 · Test de entrada', hint: 'jue 10-sep', tests: ['hollow', 'plancha', 'rpe'] },
   { id: 'alevin-s2', group: 'alevin', label: 'Sesión 2 · Test de entrada', hint: 'mar 15-sep', tests: ['espagat', 'puente', 'rpe'] },
-  { id: 'alevin-s3', group: 'alevin', label: 'Sesión 3 · Test de entrada', hint: 'jue 17-sep', tests: ['flexion', 'squat_jump', 'rpe'] },
+  // 2026-09-17: reprogramada. Alevín deja el circuito con automedición entre compañeras
+  // para las pruebas de nivel —Daniel no ve madurez suficiente todavía— y pasa a
+  // ejecutar la prueba de nivel propia de cada subgrupo, apto/no apto. flexion y
+  // squat_jump son las de Alevín 1; burpees y dominadas, las de Alevín 2. La app no
+  // distingue subgrupos: cada test lista a las 12, y Daniel solo rellena las que le
+  // toca esa prueba.
+  { id: 'alevin-s3', group: 'alevin', label: 'Sesión 3 · Pruebas de nivel (apto/no apto)', hint: 'jue 17-sep · Alevín 1: flexión + squat jump · Alevín 2: burpees + dominadas', tests: ['flexion', 'squat_jump', 'burpees', 'dominadas', 'rpe'] },
   { id: 'alevin-s4', group: 'alevin', label: 'Sesión 4 · Test de entrada', hint: 'mar 22-sep', tests: ['pierna_90', 'elevaciones_colgada', 'elevacion_tumbada', 'rpe'] },
 
   { id: 'infantil-s1', group: 'infantil', label: 'Sesión 1 · Test mínimo viable', hint: 'jue 10-sep', tests: ['hollow', 'aguante_v', 'v_ups', 'rpe'] },
   { id: 'infantil-s2', group: 'infantil', label: 'Sesión 2 · Test mínimo viable', hint: 'mar 15-sep', tests: ['espagat', 'vertical_3_apoyos', 'elevaciones_colgada', 'elevacion_tumbada', 'rpe'] },
-  { id: 'infantil-s3', group: 'infantil', label: 'Sesión 3 · Sobre la marcha', hint: 'jue 17-sep', tests: ['puente_pierna', 'pierna_90', 'rpe'] },
+  // 2026-09-17: puente_pierna y pierna_90 ya son pruebas oficiales de Infantil
+  // (#7 y #6) — añadido el apto/no apto de cada una, además de sus cm/segundos.
+  { id: 'infantil-s3', group: 'infantil', label: 'Sesión 3 · Sobre la marcha + apto/no apto', hint: 'jue 17-sep', tests: ['puente_pierna', 'pierna_90', 'rpe'] },
   { id: 'infantil-s4', group: 'infantil', label: 'Sesión 4 · Sobre la marcha', hint: 'mar 22-sep', tests: ['comba', 'rpe'] },
 
   { id: 'junior-s1', group: 'junior', label: 'Sesión 1 · Batería completa', hint: 'vie 11-sep', tests: null },
 ];
 
 const FULL_BATTERY = {
-  alevin: ['espagat', 'puente', 'hollow', 'plancha', 'pierna_90', 'flexion', 'elevaciones_colgada', 'elevacion_tumbada', 'squat_jump', 'rpe'],
+  alevin: ['espagat', 'puente', 'hollow', 'plancha', 'pierna_90', 'flexion', 'burpees', 'dominadas', 'elevaciones_colgada', 'elevacion_tumbada', 'squat_jump', 'rpe'],
   infantil: ['espagat', 'puente_pierna', 'hollow', 'aguante_v', 'vertical_3_apoyos', 'pierna_90', 'v_ups', 'elevaciones_colgada', 'elevacion_tumbada', 'comba', 'rpe'],
   junior: ['espagat', 'puente_pierna', 'hollow', 'aguante_v', 'vertical_3_apoyos', 'pierna_90', 'v_ups', 'elevaciones_colgada', 'elevacion_tumbada', 'comba', 'rpe'],
 };
@@ -319,6 +371,9 @@ const FULL_BATTERY = {
 const STANDING_BLOCKS = [
   { id: 'bateria', label: 'Batería completa (re-test)', hint: 'inicio de temporada y antes de cada prueba oficial', tests: null },
   { id: 'movilidad', label: 'Solo movilidad', hint: 'cada 4 semanas', tests: ['espagat', 'puente', 'puente_pierna'] },
+  // burpees y dominadas se quedan fuera de este bloque compartido a propósito: son
+  // pruebas oficiales solo de Alevín 2 y este bloque lo ven los tres grupos por igual
+  // (blocksForGroup). Entran en FULL_BATTERY.alevin y en el bloque fechado de hoy.
   { id: 'fuerza', label: 'Solo fuerza y potencia', hint: 'cada 6 semanas', tests: ['flexion', 'v_ups', 'elevaciones_colgada', 'elevacion_tumbada', 'squat_jump'] },
   { id: 'rubricas', label: 'Rúbricas en continuo', hint: 'el día que aparezca en sesión', tests: ['pino_puente', 'vertical_3_apoyos'] },
   { id: 'solo-rpe', label: 'Solo RPE', hint: 'todas las sesiones', tests: ['rpe'] },

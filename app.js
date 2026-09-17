@@ -508,8 +508,11 @@ function screenTestDetail(block, test) {
   if (test.blocked) crit.appendChild(el('div', { html: '<strong>🔴 ' + test.blocked + '</strong>' }));
   crit.appendChild(el('div', { text: test.criterion }));
   if (test.attempts) crit.appendChild(el('div', { text: `Intentos declarados: ${test.attempts}.` }));
-  const rubric = test.metrics.find((m) => m.rubric);
-  if (rubric) crit.appendChild(el('div', { class: 'rubric', html: rubric.rubric.join('<br>') }));
+  // A test can carry more than one rubric metric now (e.g. `apto` plus `nivel_apoyo`
+  // on pierna_90) — show every legend, labelled, instead of only the first match.
+  for (const m of test.metrics.filter((m) => m.rubric)) {
+    crit.appendChild(el('div', { class: 'rubric', html: `<strong>${m.label}</strong><br>` + m.rubric.join('<br>') }));
+  }
   frag.appendChild(crit);
 
   if (test.apparatus) {
