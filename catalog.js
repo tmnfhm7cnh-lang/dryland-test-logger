@@ -356,9 +356,23 @@ const ENTRY_BLOCKS = [
   // 2026-09-17: puente_pierna y pierna_90 ya son pruebas oficiales de Infantil
   // (#7 y #6) — añadido el apto/no apto de cada una, además de sus cm/segundos.
   { id: 'infantil-s3', group: 'infantil', label: 'Sesión 3 · Sobre la marcha + apto/no apto', hint: 'jue 17-sep', tests: ['puente_pierna', 'pierna_90', 'rpe'] },
-  { id: 'infantil-s4', group: 'infantil', label: 'Sesión 4 · Sobre la marcha', hint: 'mar 22-sep', tests: ['comba', 'rpe'] },
+  // 2026-09-20: este bloque era solo comba + rpe, y era el unico martes de Infantil
+  // sin nada que recuperase P1. La colgada de la sesion 2 (mar 15-sep) no llego al CSV
+  // —la estacion 1 de aquel circuito fue "colgada de companera o de pared", que no
+  // cuenta como espaldera—, asi que Infantil no tiene linea base de su prueba oficial
+  // n.1 y la espaldera deja de estar disponible el 1-oct. elevacion_tumbada entra el
+  // mismo dia a proposito: es la unica de las dos que se podra repetir en octubre, y
+  // sin las dos medidas a la vez no hay forma de enlazar las series cuando se cierre
+  // el pabellon. Ver plan-de-medicion.md §7.
+  { id: 'infantil-s4', group: 'infantil', label: 'Sesión 4 · Sobre la marcha + recuperación de P1', hint: 'mar 22-sep · colgada en espaldera, última ventana antes del 1-oct', tests: ['comba', 'elevaciones_colgada', 'elevacion_tumbada', 'rpe'] },
 
   { id: 'junior-s1', group: 'junior', label: 'Sesión 1 · Batería completa', hint: 'vie 11-sep', tests: null },
+
+  // 2026-09-20: Junior tampoco tiene ninguna fila de elevaciones_colgada —la bateria
+  // completa del 11-sep se dio sin ella—. Su sesion 3 es el ultimo viernes entero
+  // dentro de la ventana de espaldera (la 4 cae el 2-oct, un dia tarde) y su bloque de
+  // fuerza ya lleva P1 como prioridad alta, asi que la medicion es el contenido.
+  { id: 'junior-s3', group: 'junior', label: 'Sesión 3 · Recuperación de P1', hint: 'vie 25-sep · colgada en espaldera, última ventana antes del 1-oct', tests: ['elevaciones_colgada', 'elevacion_tumbada', 'rpe'] },
 ];
 
 const FULL_BATTERY = {
