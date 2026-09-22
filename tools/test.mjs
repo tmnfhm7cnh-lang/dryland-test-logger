@@ -195,13 +195,12 @@ check('las cuatro pestañas renderizan', true, true);
 console.log('\n== 6 ter. varios cronometros a la vez (2026-09-15) ==');
 // Habia uno solo: arrancar el segundo paraba el primero Y le escribia su valor en la casilla,
 // asi que dos aguantes simultaneos eran imposibles. Con doce ninas eso es media sesion.
-ev(`stopAllWatches();
-globalThis.__t = { calls: [] };
-globalThis.mkField = (name) => {
-  const line = numberField({ type: 'seconds' }, '', (v) => __t.calls.push([name, v]));
+ev(`globalThis.__t = { calls: [] };
+globalThis.mkField = (name, cellKey) => {
+  const line = numberField({ type: 'seconds' }, '', (v) => __t.calls.push([name, v]), cellKey);
   return { btn: line.children[0], input: line.children[1] };
 };
-globalThis.F1 = mkField('F1'); globalThis.F2 = mkField('F2'); globalThis.F3 = mkField('F3');
+globalThis.F1 = mkField('F1', 'k1'); globalThis.F2 = mkField('F2', 'k2'); globalThis.F3 = mkField('F3', 'k3');
 F1.btn.click(); F2.btn.click(); F3.btn.click();`);
 
 check('tres corriendo a la vez', ev('watches.size'), 3);
@@ -209,11 +208,14 @@ check('los tres botones muestran parar', ev('[F1,F2,F3].map(f=>f.btn.textContent
 check('ninguno ha anotado nada todavia', ev('__t.calls'), []);
 check('un solo ticker para todos', ev('watchTicker !== null'), true);
 
-// Tiempos conocidos, escritos en el reloj interno de cada uno.
-ev(`watches.get(F1.btn).t0 = Date.now() - 12400;
-watches.get(F2.btn).t0 = Date.now() - 35000;
-watches.get(F3.btn).t0 = Date.now() - 8100;`);
-ev('F2.btn.click()'); // la segunda rompe la posicion antes que nadie
+// Tiempos conocidos, escritos en el reloj interno de cada uno (en las dos copias del
+// estado: la atada al boton y la que sobrevive al repintado).
+ev(`for (const [f, ms, k] of [[F1, 12400, 'k1'], [F2, 35000, 'k2'], [F3, 8100, 'k3']]) {
+  const t0 = Date.now() - ms;
+  watches.get(f.btn).t0 = t0;
+  runningWatches.get(k).t0 = t0;
+}`);
+ev('F2.btn.click()'); // la segunda rompe la posicion antes que nadie, y ha pasado de sobra de 400 ms
 
 check('parar uno deja los otros dos corriendo', ev('watches.size'), 2);
 check('y solo anota el suyo', ev('__t.calls.map((c) => c[0])'), ['F2']);
@@ -221,6 +223,7 @@ check('con su tiempo, no el de otro', ev('Math.abs(__t.calls[0][1] - 35) < 0.15'
 check('el que para vuelve a ⏱', ev('F2.btn.textContent'), '⏱');
 check('y pierde la clase running', ev('F2.btn.className.includes("running")'), false);
 check('los otros dos siguen en ⏹', ev('[F1,F3].map((f) => f.btn.textContent)'), ['⏹', '⏹']);
+check('su cronometro real ya no esta entre los vivos', ev('runningWatches.has("k2")'), false);
 // Lo que rompia antes: el valor de uno aterrizaba en la casilla de otro.
 ev('paintWatches()');
 check('cada casilla pinta su propio tiempo, no el del vecino',
@@ -228,17 +231,73 @@ check('cada casilla pinta su propio tiempo, no el del vecino',
 check('y la del que paro conserva el suyo', ev('Math.abs(F2.input.value - 35) < 0.15'), true);
 check('el ticker sigue vivo mientras quede alguno', ev('watchTicker !== null'), true);
 
-// Lo que pasa al repintar: render() para todos y anota lo que llevaran, porque un cronometro
-// huerfano escribiria en una casilla que ya no esta en pantalla.
-ev('stopAllWatches()');
-check('parar todos anota los dos que quedaban', ev('__t.calls.map((c) => c[0])'), ['F2', 'F1', 'F3']);
-check('cada uno con su propio tiempo', ev('[Math.abs(__t.calls[1][1]-12.4)<0.15, Math.abs(__t.calls[2][1]-8.1)<0.15]'), [true, true]);
-check('no queda ninguno corriendo', ev('watches.size'), 0);
+console.log('\n== 6 quater. un repintado suspende sin anotar, y reanuda al volver (2026-09-23) ==');
+// Esto es lo que hasta ahora fabricaba tiempos falsos: cualquier repintado (cambiar de
+// pestana, un RPE, marcar hecho, elegir aparato...) llama a esto mismo que render(), y
+// antes eso paraba-y-anotaba cualquier cronometro corriendo. Ahora solo debe soltar el
+// nodo del boton: el cronometro real (F1 y F3, todavia vivos) no debe tocarse.
+ev('__t.calls = []; detachWatches();');
+check('el repintado no anota nada', ev('__t.calls'), []);
+check('los cronometros reales siguen vivos', ev('[runningWatches.has("k1"), runningWatches.has("k3")]'), [true, true]);
+check('pero ya no hay ningun boton atado', ev('watches.size'), 0);
+
+// Se repinta la misma casilla (k1): el boton nuevo tiene que nacer ya corriendo, con el
+// tiempo acumulado del original, no desde cero.
+ev(`globalThis.F1b = mkField('F1-repintado', 'k1');`);
+check('el boton nuevo nace corriendo', ev('F1b.btn.textContent'), '⏹');
+check('con el tiempo acumulado (~12,4 s), no desde cero', ev('Math.abs(F1b.input.value - 12.4) < 0.15'), true);
+check('y queda atado en watches', ev('watches.has(F1b.btn)'), true);
+
+ev(`watches.get(F1b.btn).t0 -= 1000; runningWatches.get('k1').t0 = watches.get(F1b.btn).t0;
+F1b.btn.click();`);
+check('parar tras reanudar anota, con el nombre del campo repintado', ev('__t.calls.map((c) => c[0])'), ['F1-repintado']);
+check('y con el tiempo desde el arranque original (12,4 + 1 = 13,4 s), no 1 s', ev('Math.abs(__t.calls[0][1] - 13.4) < 0.2'), true);
+
+// Una casilla que no se vuelve a pintar (p. ej. se cambio de prueba) sigue corriendo en
+// segundo plano, sin anotar nada, hasta que alguien vuelva a esa pantalla o la pare.
+check('k3 sigue corriendo sin nadie pintandola', ev('runningWatches.has("k3")'), true);
+check('y nada se ha anotado por ella', ev('__t.calls.some((c) => c[0] === "F3")'), false);
+ev(`globalThis.F3b = mkField('F3-repintado', 'k3');
+watches.get(F3b.btn).t0 -= 1000; runningWatches.get('k3').t0 = watches.get(F3b.btn).t0;
+F3b.btn.click();`);
+check('y cuando por fin se para, anota el tiempo real acumulado (~9,1 s)', ev('Math.abs(__t.calls.find(c=>c[0]==="F3-repintado")[1] - 9.1) < 0.2'), true);
+check('no queda ningun cronometro corriendo', ev('runningWatches.size'), 0);
+check('ni ningun boton atado', ev('watches.size'), 0);
 check('y el ticker se apaga', ev('watchTicker'), null);
 
-// Tocar dos veces el mismo boton es arrancar y parar, no arrancar dos veces.
-ev(`__t.calls = []; F1.btn.click(); F1.btn.click();`);
-check('doble toque en el mismo boton arranca y para', ev('[watches.size, __t.calls.length]'), [0, 1]);
+console.log('\n== 6 quinquies. doble toque no anota ~0,0 s encima del valor bueno (2026-09-23) ==');
+ev(`__t.calls = []; globalThis.F4 = mkField('F4', 'k4'); F4.btn.click(); F4.btn.click();`); // el segundo toque llega casi al instante
+check('el doble toque no para el cronometro', ev('watches.has(F4.btn)'), true);
+check('sigue mostrando parar', ev('F4.btn.textContent'), '⏹');
+check('no anota nada', ev('__t.calls'), []);
+ev(`watches.get(F4.btn).t0 -= 1000; runningWatches.get('k4').t0 = watches.get(F4.btn).t0;
+F4.btn.click();`); // esta vez si ha pasado tiempo de verdad
+check('pasado el tiempo, el toque de parar si anota', ev('__t.calls.map((c) => c[0])'), ['F4']);
+check('con el tiempo real, no ~0', ev('Math.abs(__t.calls[0][1] - 1.0) < 0.2'), true);
+
+console.log('\n== 6 sexies. abrir el reloj de sala ya no para los cronometros (2026-09-23) ==');
+ev(`__t.calls = []; globalThis.F5 = mkField('F5', 'k5'); F5.btn.click();`);
+ev('roomClockOpen()');
+check('el cronometro sigue corriendo tras abrir el reloj de sala', ev('watches.has(F5.btn)'), true);
+check('nada anotado', ev('__t.calls'), []);
+
+console.log('\n== 6 septies. coma decimal no vacia el campo ni borra un dato guardado (2026-09-23) ==');
+ev(`globalThis.__c = { last: undefined };
+const line = numberField({ type: 'cm' }, 37, (v) => { __c.last = v; }, 'ck-cm');
+globalThis.CM = { input: line.children[1] };`);
+check('el campo numérico es type=text, no type=number', ev('CM.input.attrs.type'), 'text');
+check('el valor inicial se pasa igual', ev('CM.input.attrs.value'), 37);
+
+ev(`CM.input.value = '12,5'; CM.input._on.change();`);
+check('la coma se interpreta como decimal (12,5 -> 13 cm redondeado)', ev('__c.last'), 13);
+check('sin marcar el campo', ev('CM.input.className.includes("invalid")'), false);
+
+ev(`__c.last = undefined; CM.input.value = 'abc'; CM.input._on.change();`);
+check('una entrada no interpretable no llama a commit (no borra lo guardado)', ev('__c.last'), undefined);
+check('el campo se marca en rojo', ev('CM.input.className.includes("invalid")'), true);
+
+ev(`CM.input.value = ''; CM.input._on.change();`);
+check('vaciar el campo a propósito sí borra (es la acción explícita del usuario)', ev('__c.last'), '');
 
 console.log('\n== 7. el aviso rojo obsoleto de P1 ya no existe ==');
 check('elevaciones_colgada sin blocked', ev(`!!TEST_BY_ID['elevaciones_colgada'].blocked`), false);

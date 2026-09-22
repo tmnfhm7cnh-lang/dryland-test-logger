@@ -274,8 +274,15 @@ function go(patch) {
    Antes habia uno solo y arrancar el segundo paraba el primero Y le escribia su valor,
    asi que no se podian medir dos aguantes simultaneos: en un grupo de doce, eso es la
    mitad de la sesion. Ahora cada boton lleva el suyo y solo se para el que se toca.
-   Un unico ticker los pinta todos, para que no haya N intervalos desincronizados. */
-const watches = new Map(); // btn -> { input, commit, t0, }
+   2026-09-23: `render()` reconstruye todos los botones en cada repintado (cambiar de
+   pestana, un RPE, marcar hecho, elegir aparato...), y el codigo anterior interpretaba
+   "este boton ya no existe" como "parar y anotar" — asi que cualquier repintado con un
+   cronometro corriendo escribia el parcial como si fuera la medicion final. El estado
+   real vive ahora en `runningWatches`, con clave de casilla (fecha|atleta|prueba|metrica)
+   y no de nodo, sobrevive al repintado, y `numberField()` reengancha el boton nuevo al
+   mismo `t0` si la casilla sigue corriendo. Solo un toque explicito de parar anota. */
+const watches = new Map(); // btn -> { input, commit, cellKey, t0 } — atado al DOM de este repintado
+const runningWatches = new Map(); // cellKey -> { t0 } — sobrevive al repintado
 let watchTicker = null;
 
 function paintWatches() {
@@ -286,7 +293,11 @@ function paintWatches() {
 function stopWatch(btn) {
   const w = watches.get(btn);
   if (!w) return;
+  // Un toque de parar a menos de 400 ms del de arrancar es un doble toque accidental
+  // sobre un boton parado, no una medicion: sin esto anota ~0,0 s encima del valor bueno.
+  if (Date.now() - w.t0 < 400) return;
   watches.delete(btn);
+  runningWatches.delete(w.cellKey);
   if (!watches.size && watchTicker !== null) {
     clearInterval(watchTicker);
     watchTicker = null;
@@ -298,31 +309,51 @@ function stopWatch(btn) {
   w.commit(secs);
 }
 
-/* Cualquier repintado se lleva por delante los botones, asi que antes de repintar se
-   paran todos y se anota lo que llevaran: un cronometro huerfano escribiria en una
-   casilla que ya no esta en pantalla. */
-function stopAllWatches() {
-  for (const btn of [...watches.keys()]) stopWatch(btn);
+/* Un repintado sustituye todos los nodos del DOM: esto solo suelta la referencia al
+   boton viejo, nunca anota nada. El cronometro real sigue vivo en `runningWatches`. */
+function detachWatches() {
+  watches.clear();
 }
 
-function startWatch(btn, input, commit) {
+function startWatch(btn, input, commit, cellKey) {
   if (watches.has(btn)) return;
-  watches.set(btn, { input, commit, t0: Date.now() });
+  const t0 = Date.now();
+  watches.set(btn, { input, commit, cellKey, t0 });
+  runningWatches.set(cellKey, { t0 });
   btn.classList.add('running');
   btn.textContent = '⏹';
   if (watchTicker === null) watchTicker = setInterval(paintWatches, 100);
 }
 
-function numberField(metric, value, commit) {
+// El teclado español de iOS escribe la coma como decimal. Un <input type=number> descarta
+// "12,5" como si el campo estuviera vacío antes de que este código lo vea — y un campo vacío
+// al salir del foco borra el valor guardado (ver setVal). type=text deja llegar el texto
+// crudo; parseLocalNumber() acepta coma y punto, y commitInput() nunca borra un valor
+// existente a partir de una entrada que no se puede interpretar: lo deja y marca el campo.
+function parseLocalNumber(s) {
+  return parseFloat(String(s).replace(',', '.'));
+}
+
+function numberField(metric, value, commit, cellKey) {
   const step = metric.type === 'deg' ? 5 : metric.type === 'seconds' ? 0.1 : 1;
   const input = el('input', {
-    type: 'number',
-    step,
+    type: 'text',
     inputmode: metric.type === 'reps' || metric.type === 'count' ? 'numeric' : 'decimal',
     value: value === '' ? '' : value,
   });
   const commitInput = () => {
-    const v = input.value === '' ? '' : roundFor(metric.type, input.value);
+    if (input.value === '') {
+      input.classList.remove('invalid');
+      commit('');
+      return;
+    }
+    const v = roundFor(metric.type, input.value);
+    if (v === '') {
+      // No se pudo interpretar: se deja el valor guardado tal cual, no se borra nada.
+      input.classList.add('invalid');
+      return;
+    }
+    input.classList.remove('invalid');
     input.value = v;
     commit(v);
   };
@@ -330,16 +361,32 @@ function numberField(metric, value, commit) {
   input.addEventListener('blur', commitInput);
 
   const bump = (delta) => {
-    const base = input.value === '' ? 0 : parseFloat(input.value);
+    const base = input.value === '' ? 0 : parseLocalNumber(input.value);
+    if (isNaN(base)) {
+      input.classList.add('invalid');
+      return;
+    }
     const v = roundFor(metric.type, Math.max(0, base + delta));
     input.value = v;
+    input.classList.remove('invalid');
     commit(v);
   };
 
   const line = el('div', { class: 'inputline' });
   if (metric.type === 'seconds') {
     const btn = el('button', { class: 'watch', type: 'button', text: '⏱', title: 'Cronómetro' });
-    btn.addEventListener('click', () => (watches.has(btn) ? stopWatch(btn) : startWatch(btn, input, commit)));
+    // Si esta casilla seguía corriendo antes del repintado, reengancha el mismo t0 en
+    // vez de arrancar de cero: es lo que hace posible cambiar de pantalla sin perder ni
+    // fabricar el tiempo.
+    const live = runningWatches.get(cellKey);
+    if (live) {
+      watches.set(btn, { input, commit, cellKey, t0: live.t0 });
+      btn.classList.add('running');
+      btn.textContent = '⏹';
+      input.value = ((Date.now() - live.t0) / 1000).toFixed(1);
+      if (watchTicker === null) watchTicker = setInterval(paintWatches, 100);
+    }
+    btn.addEventListener('click', () => (watches.has(btn) ? stopWatch(btn) : startWatch(btn, input, commit, cellKey)));
     line.append(btn, input);
   } else {
     line.append(
@@ -382,7 +429,7 @@ function fieldFor(metric, date, athlete, groupId, test) {
   const box = el('div', { class: 'field' }, [el('label', { text: metric.label })]);
   if (metric.type === 'flag') box.appendChild(flagField(value, commit));
   else if (metric.type === 'level' || metric.type === 'rpe') box.appendChild(levelField(metric, value, commit));
-  else box.appendChild(numberField(metric, value, commit));
+  else box.appendChild(numberField(metric, value, commit, key(date, athlete, test.id, metric.csv)));
   return box;
 }
 
@@ -423,7 +470,6 @@ function roomClockZero() {
 }
 
 async function roomClockOpen() {
-  stopAllWatches();
   document.getElementById('clock').classList.add('on');
   roomClockPaint();
   // A sleeping iPad mid-wave loses the measurement of everyone still holding.
@@ -778,7 +824,7 @@ function screenExport() {
 /* ----------------------------------------------------------------- render */
 
 function render() {
-  stopAllWatches();
+  detachWatches();
   $group.innerHTML = '';
   for (const g of GROUPS) $group.appendChild(el('option', { value: g.id, text: g.label, selected: g.id === ui.group }));
   $date.value = ui.date;
