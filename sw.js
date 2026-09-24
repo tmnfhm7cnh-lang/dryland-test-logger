@@ -16,10 +16,16 @@ self.addEventListener('install', (e) => {
   );
 });
 
+/* Only delete OUR OWN old cache generations. angle-lab shares this origin
+   (tmnfhm7cnh-lang.github.io) and will register its own service worker with
+   its own cache name (LOTE 3 audit) — deleting any key that merely isn't
+   *this* CACHE would wipe its offline cache the next time this SW activates. */
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(
+        keys.filter((k) => k.startsWith('dryland-test-logger-') && k !== CACHE).map((k) => caches.delete(k))
+      ))
       .then(() => self.clients.claim())
   );
 });
