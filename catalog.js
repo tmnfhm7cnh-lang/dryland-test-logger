@@ -67,7 +67,23 @@ const RUBRIC_APTO = ['0 · No apto', '1 · Apto (criterio oficial)'];
  * metric.atHome  -> not shown poolside; lives in the "En casa" screen.
  * metric.second  -> collapsed behind "más métricas" inside the test.
  * metric.tag     -> appended to observaciones when the metric has a value.
+ * metric.min/max -> overrides RANGE_BY_TYPE below for that one metric.
  */
+
+// Sanity bounds by type, not by sport — wide enough that no real measurement of this battery
+// should ever hit them, narrow enough to catch the concrete failure that motivated them: a
+// time in seconds typed into a length-in-cm field, or the reverse. Added 2026-09-24, §7 del
+// LOTE 1. These are physical plausibility bounds, not the sport's pass/fail criteria (those
+// live in each test's `criterion` and rubric) — nobody has asked for per-metric thresholds
+// tighter than this, so none are invented here; a specific metric can add its own `min`/`max`
+// above to narrow it once there's a real number to back it.
+const RANGE_BY_TYPE = {
+  cm: [0, 250],      // no swimmer's limb or jump is measured in metres
+  seconds: [0, 600], // no hold or timed test in this battery runs past ten minutes
+  deg: [0, 360],
+  reps: [0, 300],
+  count: [0, 300],
+};
 const TESTS = [
   {
     id: 'espagat',

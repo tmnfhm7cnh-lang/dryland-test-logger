@@ -19,16 +19,39 @@ function blankDB() {
   // `codesUsed` is the graveyard: every number ever handed out, kept even when the athlete is
 // gone from `athletes`. Without it, restoring an old backup could hand a dead code to a new
 // swimmer and two different girls would share a row key for the season.
-  return { version: 1, evaluator: 'DJ', athletes: [], codesUsed: [], records: {}, notes: {}, attempts: {}, skipped: {}, apparatus: {}, lastExport: 0, ui: {} };
+  // `liveWatches` persists running stopwatches (cellKey -> t0) so a killed/reloaded app can
+  // resume them instead of losing the hold in progress — see restoreLiveWatches().
+  // `lastWrite` is a single clock bumped by every mutation that changes what the CSV exports
+  // (a record, a note, an apparatus, an evaluator), independent of any one record's own `at`.
+  return { version: 1, evaluator: 'DJ', athletes: [], codesUsed: [], records: {}, notes: {}, attempts: {}, skipped: {}, apparatus: {}, lastExport: 0, lastWrite: 0, ui: {}, liveWatches: {} };
 }
 
+// Set when load() finds a store it could not parse. Kept for the whole session so render()
+// can warn on every screen, not just once — see §2 del LOTE 1.
+let storageWasCorrupt = false;
+
 function load() {
+  let raw = null;
   try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (!raw) return blankDB();
-    return Object.assign(blankDB(), JSON.parse(raw));
+    raw = localStorage.getItem(STORE_KEY);
   } catch (err) {
     console.error('no se pudo leer el almacenamiento', err);
+    return blankDB();
+  }
+  if (!raw) return blankDB();
+  try {
+    return Object.assign(blankDB(), JSON.parse(raw));
+  } catch (err) {
+    // Overwriting STORE_KEY with a fresh blank DB would bury the damaged original forever.
+    // Keep it under its own key instead, so nothing is lost, and say so on screen — silently
+    // starting over as if there had never been any data is the failure this fixes.
+    console.error('almacenamiento dañado: se conserva bajo otra clave', err);
+    try {
+      localStorage.setItem(`${STORE_KEY}/corrupto-${Date.now()}`, raw);
+    } catch (err2) {
+      console.error('no se pudo conservar el original dañado', err2);
+    }
+    storageWasCorrupt = true;
     return blankDB();
   }
 }
@@ -36,14 +59,31 @@ function load() {
 let saveTimer = null;
 function save() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(db));
-    } catch (err) {
-      alert('No se ha podido guardar en el teléfono. Exporta ya el CSV antes de seguir.');
-      console.error(err);
-    }
-  }, 120);
+  saveTimer = setTimeout(flushNow, 120);
+}
+
+// A synchronous write, bypassing the 120 ms debounce. iOS can kill a backgrounded tab before
+// that timer ever fires, so anything pending has to land the instant the app stops being
+// visible — see §1 del LOTE 1, wired to visibilitychange/pagehide below.
+function flushNow() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(db));
+  } catch (err) {
+    alert('No se ha podido guardar en el teléfono. Exporta ya el CSV antes de seguir.');
+    console.error(err);
+  }
+}
+
+// Any write that changes what the CSV would export — a measurement, a note, an apparatus, an
+// evaluator — has to rearm "sin exportar", not only a change to db.records. See §6 del LOTE 1.
+function touch() {
+  db.lastWrite = Date.now();
+}
+
+function hasUnexportedChanges() {
+  return (db.lastWrite || 0) > (db.lastExport || 0);
 }
 
 const db = load();
@@ -131,7 +171,16 @@ function getVal(date, athlete, testId, metric) {
 function setVal(date, athlete, groupId, testId, metric, value) {
   const k = key(date, athlete, testId, metric);
   if (value === '' || value === null || value === undefined) delete db.records[k];
-  else db.records[k] = { d: date, a: athlete, g: groupId, t: testId, m: metric, v: value, at: Date.now() };
+  else {
+    const test = TEST_BY_ID[testId];
+    const r = { d: date, a: athlete, g: groupId, t: testId, m: metric, v: value, at: Date.now() };
+    // El aparato se congela en la fila en el momento de escribirla, no se relee al exportar:
+    // cambiarlo despues de hoy no debe reescribir hacia atras lo ya anotado. Decision de
+    // Daniel, 2026-09-24, §5 del LOTE 1.
+    if (test && test.apparatus) r.ap = apparatusFor(date, groupId);
+    db.records[k] = r;
+  }
+  touch();
   save();
 }
 
@@ -174,8 +223,18 @@ function unexportedCount() {
 /* ------------------------------------------------------------------- csv */
 
 function csvCell(v) {
-  const s = String(v ?? '');
+  let s = String(v ?? '');
+  // A free-text field (observación, evaluador) landing in a cell a spreadsheet reads as a
+  // formula is a real risk once the CSV opens in Numbers/Excel — prefix with `'` so it's
+  // always read as text. See §8 del LOTE 1.
+  if (/^[=+\-@]/.test(s)) s = "'" + s;
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+// A record whose test id is no longer in TEST_BY_ID — the catalogue renamed or dropped it
+// after the row was written. See §4 del LOTE 1.
+function orphanRecords() {
+  return Object.values(db.records).filter((r) => !TEST_BY_ID[r.t]);
 }
 
 function buildCSV() {
@@ -189,7 +248,16 @@ function buildCSV() {
   const lines = [CSV_HEADER];
   for (const r of rows) {
     const test = TEST_BY_ID[r.t];
-    if (!test) continue;
+    if (!test) {
+      // No test to look up unit, apparatus or attempts from — export the raw ids rather
+      // than silently dropping the row. A renamed test must not make its data vanish.
+      const tk = testKey(r.d, r.a, r.t);
+      lines.push([
+        r.d, r.a, r.g, r.t, r.m, r.v,
+        '', db.attempts[tk] || 1, '', db.evaluator || 'DJ', db.notes[tk] || '',
+      ].map(csvCell).join(','));
+      continue;
+    }
     const metric = test.metrics.find((m) => m.csv === r.m);
     const notes = [];
     if (metric && metric.tag) notes.push(metric.tag);
@@ -199,7 +267,10 @@ function buildCSV() {
     lines.push([
       r.d, r.a, r.g, test.csv, r.m, r.v,
       metric ? metric.unit : '', attempts,
-      test.apparatus ? apparatusFor(r.d, r.g) : '',
+      // r.ap es el congelado de §5 del LOTE 1. Una fila escrita antes de ese cambio no lo
+      // tiene (undefined, no '') — para esas, y solo para esas, se cae al valor en vivo de
+      // antes en vez de exportarlas con el instrumento en blanco.
+      test.apparatus ? (r.ap !== undefined ? r.ap : apparatusFor(r.d, r.g)) : '',
       db.evaluator || 'DJ', notes.join(' · '),
     ].map(csvCell).join(','));
   }
@@ -285,6 +356,15 @@ const watches = new Map(); // btn -> { input, commit, cellKey, t0 } — atado al
 const runningWatches = new Map(); // cellKey -> { t0 } — sobrevive al repintado
 let watchTicker = null;
 
+// db.liveWatches es runningWatches en disco: si iOS mata la app con un cronometro corriendo,
+// solo esto permite reanudarlo al reabrir en vez de haberlo perdido. Se llama una vez al
+// arrancar y queda expuesta para el propio test del arranque. Ver §1 del LOTE 1.
+function restoreLiveWatches() {
+  runningWatches.clear();
+  for (const [k, t0] of Object.entries(db.liveWatches || {})) runningWatches.set(k, { t0 });
+}
+restoreLiveWatches();
+
 function paintWatches() {
   const now = Date.now();
   for (const [, w] of watches) w.input.value = ((now - w.t0) / 1000).toFixed(1);
@@ -298,6 +378,7 @@ function stopWatch(btn) {
   if (Date.now() - w.t0 < 400) return;
   watches.delete(btn);
   runningWatches.delete(w.cellKey);
+  delete db.liveWatches[w.cellKey];
   if (!watches.size && watchTicker !== null) {
     clearInterval(watchTicker);
     watchTicker = null;
@@ -306,6 +387,10 @@ function stopWatch(btn) {
   btn.textContent = '⏱';
   const secs = Math.round(((Date.now() - w.t0) / 1000) * 10) / 10;
   w.input.value = secs;
+  if (w.metric) {
+    const [lo, hi] = rangeFor(w.metric);
+    w.input.classList.toggle('outrange', secs < lo || secs > hi);
+  }
   w.commit(secs);
 }
 
@@ -315,11 +400,13 @@ function detachWatches() {
   watches.clear();
 }
 
-function startWatch(btn, input, commit, cellKey) {
+function startWatch(btn, input, commit, cellKey, metric) {
   if (watches.has(btn)) return;
   const t0 = Date.now();
-  watches.set(btn, { input, commit, cellKey, t0 });
+  watches.set(btn, { input, commit, cellKey, t0, metric });
   runningWatches.set(cellKey, { t0 });
+  db.liveWatches[cellKey] = t0;
+  save();
   btn.classList.add('running');
   btn.textContent = '⏹';
   if (watchTicker === null) watchTicker = setInterval(paintWatches, 100);
@@ -332,6 +419,15 @@ function startWatch(btn, input, commit, cellKey) {
 // existente a partir de una entrada que no se puede interpretar: lo deja y marca el campo.
 function parseLocalNumber(s) {
   return parseFloat(String(s).replace(',', '.'));
+}
+
+// Sanity bounds by metric type, not the sport's own criteria — just what a human body can
+// physically produce, wide enough to never block a real value. Catches the concrete failure
+// named in §7 del LOTE 1: a time in seconds typed into a length-in-cm field, or vice versa.
+// A specific metric can still narrow this with its own `min`/`max` in catalog.js.
+function rangeFor(metric) {
+  const [lo, hi] = RANGE_BY_TYPE[metric.type] || [-Infinity, Infinity];
+  return [metric.min ?? lo, metric.max ?? hi];
 }
 
 function numberField(metric, value, commit, cellKey) {
@@ -355,6 +451,8 @@ function numberField(metric, value, commit, cellKey) {
     }
     input.classList.remove('invalid');
     input.value = v;
+    const [lo, hi] = rangeFor(metric);
+    input.classList.toggle('outrange', v < lo || v > hi);
     commit(v);
   };
   input.addEventListener('change', commitInput);
@@ -369,6 +467,8 @@ function numberField(metric, value, commit, cellKey) {
     const v = roundFor(metric.type, Math.max(0, base + delta));
     input.value = v;
     input.classList.remove('invalid');
+    const [lo, hi] = rangeFor(metric);
+    input.classList.toggle('outrange', v < lo || v > hi);
     commit(v);
   };
 
@@ -380,13 +480,13 @@ function numberField(metric, value, commit, cellKey) {
     // fabricar el tiempo.
     const live = runningWatches.get(cellKey);
     if (live) {
-      watches.set(btn, { input, commit, cellKey, t0: live.t0 });
+      watches.set(btn, { input, commit, cellKey, t0: live.t0, metric });
       btn.classList.add('running');
       btn.textContent = '⏹';
       input.value = ((Date.now() - live.t0) / 1000).toFixed(1);
       if (watchTicker === null) watchTicker = setInterval(paintWatches, 100);
     }
-    btn.addEventListener('click', () => (watches.has(btn) ? stopWatch(btn) : startWatch(btn, input, commit, cellKey)));
+    btn.addEventListener('click', () => (watches.has(btn) ? stopWatch(btn) : startWatch(btn, input, commit, cellKey, metric)));
     line.append(btn, input);
   } else {
     line.append(
@@ -574,6 +674,7 @@ function screenTestDetail(block, test) {
           const k = apparatusKey(ui.date, ui.group);
           if (db.apparatus[k] === opt) delete db.apparatus[k];
           else db.apparatus[k] = opt;
+          touch();
           save();
           render();
         },
@@ -627,6 +728,7 @@ function screenTestDetail(block, test) {
     });
     attemptsInput.addEventListener('change', () => {
       db.attempts[tk] = Math.max(1, parseInt(attemptsInput.value, 10) || 1);
+      touch();
       save();
     });
     extra.appendChild(el('div', { class: 'field' }, [el('label', { text: 'Intentos usados' }), el('div', { class: 'inputline' }, [attemptsInput])]));
@@ -637,9 +739,13 @@ function screenTestDetail(block, test) {
       const v = note.value.trim();
       if (v) db.notes[tk] = v;
       else delete db.notes[tk];
+      touch();
       save();
     });
-    extra.appendChild(el('div', { class: 'field' }, [el('label', { text: 'Observación' }), note]));
+    extra.appendChild(el('div', { class: 'field' }, [
+      el('label', { text: 'Observación' }), note,
+      el('p', { class: 'note', text: 'Va al CSV compartido: describe el gesto, nunca escribas un nombre.' }),
+    ]));
     row.appendChild(extra);
     frag.appendChild(row);
   }
@@ -742,10 +848,14 @@ function screenRoster() {
   const ev = el('input', { type: 'text', value: db.evaluator || 'DJ' });
   ev.addEventListener('change', () => {
     db.evaluator = ev.value.trim() || 'DJ';
+    touch();
     save();
   });
   frag.appendChild(el('h3', { text: 'Evaluador' }));
-  frag.appendChild(el('div', { class: 'athlete' }, [el('div', { class: 'field' }, [el('label', { text: 'Iniciales que van a la columna evaluador' }), el('div', { class: 'inputline' }, [ev])])]));
+  frag.appendChild(el('div', { class: 'athlete' }, [el('div', { class: 'field' }, [
+    el('label', { text: 'Iniciales que van a la columna evaluador' }), el('div', { class: 'inputline' }, [ev]),
+    el('p', { class: 'note', text: 'Solo iniciales (p. ej. DJ), nunca el nombre completo.' }),
+  ])]));
   return frag;
 }
 
@@ -753,9 +863,18 @@ function screenExport() {
   const frag = document.createDocumentFragment();
   const total = Object.keys(db.records).length;
   const pend = unexportedCount();
+  const dirty = hasUnexportedChanges();
   frag.appendChild(el('h2', { text: 'Exportar' }));
-  frag.appendChild(el('p', { class: 'note', text: `${total} mediciones guardadas · ${pend} sin exportar.` }));
+  frag.appendChild(el('p', { class: 'note', text: dirty || pend
+    ? `${total} mediciones guardadas · ${pend} sin exportar${!pend ? ' (cambios en nota, aparato, intentos o evaluador)' : ''}.`
+    : `${total} mediciones guardadas · nada sin exportar.` }));
   frag.appendChild(el('div', { class: 'criterion', text: 'Exporta al acabar cada sesión, sin excepción. El navegador del iPhone puede borrar los datos de una web que no se usa; el CSV en OneDrive no.' }));
+
+  const orphans = orphanRecords();
+  if (orphans.length) {
+    const ids = [...new Set(orphans.map((r) => r.t))].join(', ');
+    frag.appendChild(el('div', { class: 'criterion blocked', text: `⚠ ${orphans.length} fila(s) de una prueba que ya no está en el catálogo (${ids}). Se exportan igual con el id crudo — revísalas antes de compartir.` }));
+  }
 
   const csvBtn = el('button', { class: 'btn primary', type: 'button', text: '📤 Compartir CSV → Archivos / OneDrive' });
   csvBtn.addEventListener('click', async () => {
@@ -812,7 +931,11 @@ function screenExport() {
       render();
       return;
     }
-    Object.assign(db, blankDB());
+    // El cementerio de códigos no se borra con el resto: un código no se reutiliza jamás,
+    // ni siquiera tras un "empezar de cero". usedNumbers() ya suma codesUsed y los códigos
+    // de las propias nadadoras que se están a punto de borrar — ver §3 del LOTE 1.
+    const graveyard = [...usedNumbers()];
+    Object.assign(db, blankDB(), { codesUsed: graveyard });
     localStorage.removeItem(STORE_KEY);
     save();
     go({ tab: 'roster', blockId: null, testId: null });
@@ -835,13 +958,19 @@ function render() {
   $badge.textContent = pending;
 
   $banner.innerHTML = '';
+  if (storageWasCorrupt) {
+    $banner.appendChild(el('div', { class: 'banner bad', text: 'El almacenamiento del teléfono estaba dañado: se ha empezado de cero. El original se conserva sin tocar bajo otra clave — avísame antes de seguir.' }));
+  }
   const pend = unexportedCount();
   if (pend > 0) $banner.appendChild(el('div', { class: 'banner warn', text: `${pend} mediciones sin exportar. Comparte el CSV al acabar la sesión.` }));
+  else if (hasUnexportedChanges()) $banner.appendChild(el('div', { class: 'banner warn', text: 'Hay cambios sin exportar (nota, aparato, intentos o evaluador). Comparte el CSV al acabar la sesión.' }));
   const noApp = missingApparatus();
   if (noApp.length) {
     const where = noApp.map((k) => k.split('|').reverse().join(' ')).join(', ');
     $banner.appendChild(el('div', { class: 'banner warn', text: `Falta declarar el aparato de colgada en: ${where}. Sin él, esas filas salen con la columna instrumento vacía.` }));
   }
+  const orphans = orphanRecords();
+  if (orphans.length) $banner.appendChild(el('div', { class: 'banner warn', text: `${orphans.length} fila(s) de una prueba que ya no está en el catálogo. Revísalas en Exportar.` }));
 
   $view.innerHTML = '';
   if (ui.tab === 'session') {
@@ -864,6 +993,13 @@ document.addEventListener('visibilitychange', async () => {
   if (!document.getElementById('clock').classList.contains('on') || roomClock.lock) return;
   try { roomClock.lock = await navigator.wakeLock.request('screen'); } catch (e) { roomClock.lock = null; }
 });
+// iOS can kill a backgrounded tab before the 120 ms debounce in save() ever fires — flush the
+// instant the app stops being visible, and again on pagehide as the last chance of all. Ver §1
+// del LOTE 1.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushNow();
+});
+window.addEventListener('pagehide', flushNow);
 
 $group.addEventListener('change', () => go({ group: $group.value, blockId: null, testId: null }));
 $date.addEventListener('change', () => go({ date: $date.value || todayISO(), pinDate: $date.value !== todayISO() }));

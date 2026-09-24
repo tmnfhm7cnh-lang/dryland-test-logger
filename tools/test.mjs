@@ -51,7 +51,14 @@ const store = new Map();
 const byId = {};
 for (const id of ['view', 'group', 'date', 'tabs', 'badge', 'banner']) byId[id] = makeNode(id === 'group' || id === 'date' ? 'select' : 'div');
 
+// Both document and window can carry more than one listener per event in a real browser —
+// app.js now registers two separate 'visibilitychange' handlers (wake lock + the flush-on-hide
+// of §1 del LOTE 1), so the stub has to fan out to all of them, not keep only the last one.
 const docListeners = {};
+const winListeners = {};
+const fireDoc = (evName) => (docListeners[evName] || []).forEach((fn) => fn());
+const fireWin = (evName) => (winListeners[evName] || []).forEach((fn) => fn());
+
 const doc = {
   createElement: makeNode,
   createDocumentFragment: () => makeNode('fragment'),
@@ -60,12 +67,15 @@ const doc = {
   querySelectorAll: () => [],
   body: makeNode('body'),
   visibilityState: 'visible',
-  addEventListener: (ev, fn) => { docListeners[ev] = fn; },
+  addEventListener: (ev, fn) => { (docListeners[ev] ||= []).push(fn); },
 };
 
 const sandbox = {
   document: doc,
-  window: { scrollTo() {}, matchMedia: () => ({ matches: false }) },
+  window: {
+    scrollTo() {}, matchMedia: () => ({ matches: false }),
+    addEventListener: (ev, fn) => { (winListeners[ev] ||= []).push(fn); },
+  },
   localStorage: {
     getItem: (k) => (store.has(k) ? store.get(k) : null),
     setItem: (k, v) => store.set(k, v),
@@ -127,7 +137,7 @@ ev(`db.codesUsed = []; db.athletes = [{code:'ATL-07',group:'alevin',active:false
 check('una copia antigua sin cementerio respeta los codigos que ve', ev(`nextCode('alevin')`), 'ATL-01');
 check('y no reparte el 07 que ya existe', ev(`db.athletes.some(a=>a.code===nextCode('alevin'))`), false);
 
-console.log('\n== 4. el aparato viaja a la columna instrumento ==');
+console.log('\n== 4. el aparato viaja a la columna instrumento, congelado al escribir (2026-09-24 — antes se leia en vivo al exportar y reescribia el pasado; decision de Daniel, §5 del LOTE 1) ==');
 ev(`db.athletes = [{code:'ATL-01',group:'alevin',active:true}];
 setVal('2026-09-22','ATL-01','alevin','elevaciones_colgada','reps',8);
 setVal('2026-09-22','ATL-01','alevin','hollow','tiempo',12.4);`);
@@ -138,17 +148,33 @@ check('la app avisa de que falta', ev('missingApparatus()'), ['2026-09-22|alevin
 
 ev(`db.apparatus[apparatusKey('2026-09-22','alevin')] = 'espaldera'`);
 rows = ev('buildCSV()').trim().split('\n');
-check('declarado, sale espaldera', rows.filter((l) => l.includes('elevaciones_colgada')).map((l) => col(l, 8)), ['espaldera']);
+check('declarar el aparato despues NO reescribe lo ya anotado: sigue en blanco', rows.filter((l) => l.includes('elevaciones_colgada')).map((l) => col(l, 8)), ['']);
+check('ya no avisa: el aparato de la sesion ya esta declarado para lo que se escriba de aqui en adelante', ev('missingApparatus()'), []);
+
+ev(`setVal('2026-09-22','ATL-01','alevin','elevaciones_colgada','tiempo_carpa',5);`);
+rows = ev('buildCSV()').trim().split('\n');
+check('lo que se escribe despues de declarar si lleva el aparato',
+  rows.filter((l) => l.includes('elevaciones_colgada') && l.includes('tiempo_carpa')).map((l) => col(l, 8)), ['espaldera']);
 check('una prueba sin aparato lo deja en blanco', rows.filter((l) => l.includes('hollow')).map((l) => col(l, 8)), ['']);
-check('ya no avisa', ev('missingApparatus()'), []);
 check('cada fila tiene 11 campos', [...new Set(rows.map((l) => l.split(',').length))], [11]);
 check('evaluador sigue en su columna', rows.filter((l) => l.includes('hollow')).map((l) => col(l, 9)), ['DJ']);
 
+console.log('\n== 4 bis. una fila de antes del congelado (sin r.ap) se sigue leyendo en vivo, no se rompe ==');
+// Misma fecha/grupo que ya tiene 'espaldera' declarado, para no disparar missingApparatus() —
+// simula una fila real escrita con el codigo de antes de este LOTE, que nunca tuvo r.ap.
+ev(`db.records['2026-09-22|ATL-01|elevaciones_colgada|angulo_maximo'] = {d:'2026-09-22', a:'ATL-01', g:'alevin', t:'elevaciones_colgada', m:'angulo_maximo', v:150, at: Date.now()};`);
+check('sin .ap, se cae al valor en vivo (compatibilidad con datos ya escritos)',
+  ev('buildCSV()').trim().split('\n').filter((l) => l.includes('angulo_maximo')).map((l) => col(l, 8)), ['espaldera']);
+ev(`delete db.records['2026-09-22|ATL-01|elevaciones_colgada|angulo_maximo'];`); // no contaminar las siguientes secciones
+
 console.log('\n== 5. el aparato es de la sesion, no de la nadadora ==');
-ev(`for (const c of ['ATL-02','ATL-03']) { db.athletes.push({code:c,group:'alevin',active:true}); setVal('2026-09-22',c,'alevin','elevaciones_colgada','reps',5); }`);
+// El 'reps' de ATL-01 se escribio en la seccion 4 antes de declarar el aparato y quedo
+// congelado en blanco (§5 del LOTE 1) — se corrige aqui, ya con el aparato declarado, igual
+// que haria Daniel al releer la hoja; ATL-02 y ATL-03 se escriben ya con el aparato puesto.
+ev(`for (const c of ['ATL-01','ATL-02','ATL-03']) { if (c!=='ATL-01') db.athletes.push({code:c,group:'alevin',active:true}); setVal('2026-09-22',c,'alevin','elevaciones_colgada','reps',5); }`);
 rows = ev('buildCSV()').trim().split('\n');
 check('las tres filas heredan el aparato de un solo toque',
-  rows.filter((l) => l.includes('elevaciones_colgada')).map((l) => col(l, 8)), ['espaldera', 'espaldera', 'espaldera']);
+  rows.filter((l) => l.includes('elevaciones_colgada')).map((l) => col(l, 8)), ['espaldera', 'espaldera', 'espaldera', 'espaldera']);
 ev(`setVal('2026-10-20','ATL-01','alevin','elevaciones_colgada','reps',11)`);
 check('otra fecha vuelve a pedir el aparato', ev('missingApparatus()'), ['2026-10-20|alevin']);
 
@@ -168,6 +194,18 @@ const texts = (node, out = []) => {
   if (node._html) out.push(String(node._html).replace(/<[^>]*>/g, ''));
   for (const c of node.children || []) texts(c, out);
   return out;
+};
+// Same trick as texts(): the fragments screenX() returns are plain host objects (Array/Object
+// are shared between this realm and the vm sandbox), so a plain Node-side tree search works
+// on them directly — no need to locate elements from inside an ev() string.
+const findNode = (node, pred) => {
+  if (!node) return null;
+  if (pred(node)) return node;
+  for (const c of node.children || []) {
+    const found = findNode(c, pred);
+    if (found) return found;
+  }
+  return null;
 };
 ev(`db.athletes = []; db.codesUsed = [];
 for (let i=0;i<3;i++) db.athletes.push({code: claimCode('alevin'), group:'alevin', active:true});
@@ -298,6 +336,151 @@ check('el campo se marca en rojo', ev('CM.input.className.includes("invalid")'),
 
 ev(`CM.input.value = ''; CM.input._on.change();`);
 check('vaciar el campo a propósito sí borra (es la acción explícita del usuario)', ev('__c.last'), '');
+
+console.log('\n== 6 octies. rangos de validez por tipo de metrica (2026-09-24) ==');
+ev(`globalThis.__r = { last: undefined };
+const lineOk = numberField({ type: 'cm' }, '', (v) => { __r.last = v; }, 'ck-r1');
+globalThis.RCM = { input: lineOk.children[1] };
+RCM.input.value = '60'; RCM.input._on.change();`);
+check('60 cm esta dentro del rango de cm, sin aviso', ev('RCM.input.className.includes("outrange")'), false);
+
+ev(`__r.last = undefined; RCM.input.value = '999'; RCM.input._on.change();`);
+check('999 cm (p.ej. un tiempo tecleado donde va un largo) se acepta igual — aviso, no bloqueo', ev('__r.last'), 999);
+check('pero se marca fuera de rango', ev('RCM.input.className.includes("outrange")'), true);
+
+ev(`globalThis.__r2 = { last: undefined };
+const lineSec = numberField({ type: 'seconds' }, '', (v) => { __r2.last = v; }, 'ck-r2');
+globalThis.RSEC = { btn: lineSec.children[0], input: lineSec.children[1] };
+RSEC.btn.click();`);
+ev(`watches.get(RSEC.btn).t0 -= 700 * 1000; runningWatches.get('ck-r2').t0 = watches.get(RSEC.btn).t0;
+RSEC.btn.click();`);
+check('un aguante de mas de 600 s (fuera del rango del tipo seconds) se anota igual', ev('Math.abs(__r2.last - 700) < 1'), true);
+check('y el campo queda marcado fuera de rango', ev('RSEC.input.className.includes("outrange")'), true);
+
+ev(`globalThis.__r3 = { last: undefined };
+const lineOverride = numberField({ type: 'cm', min: 0, max: 15 }, '', (v) => { __r3.last = v; }, 'ck-r3');
+globalThis.ROV = { input: lineOverride.children[1] };
+ROV.input.value = '50'; ROV.input._on.change();`);
+check('un min/max propio de la metrica se acepta igual (aviso, no bloqueo)', ev('__r3.last'), 50);
+check('50 supera el maximo de esta metrica aunque entre en el rango general de cm', ev('ROV.input.className.includes("outrange")'), true);
+
+console.log('\n== 6 nonies. borrar todo no vacia el cementerio de codigos (2026-09-24) ==');
+ev(`db.athletes = []; db.codesUsed = [];
+for (let i=0;i<3;i++) db.athletes.push({code: claimCode('alevin'), group:'alevin', active:true});
+db.athletes[1].active = false;`); // una baja: su numero tiene que morir igual de quemado
+const frag6nonies = ev('screenExport()');
+const wipeBtn = findNode(frag6nonies, (n) => n.tagName === 'BUTTON' && n._text === '🗑 Borrar todo');
+wipeBtn.click(); // arma
+wipeBtn.click(); // confirm() del stub siempre da true
+check('borrado, sin nadadoras', ev('db.athletes.length'), 0);
+check('pero el cementerio conserva los tres numeros usados, bajas incluidas', ev('[...db.codesUsed].sort((a,b)=>a-b)'), [1, 2, 3]);
+check('y no se reparten de nuevo', ev(`nextCode('alevin')`), 'ATL-04');
+
+console.log('\n== 6 decies. una prueba renombrada no desaparece del csv (2026-09-24) ==');
+ev(`db.records = {}; db.notes = {}; db.attempts = {};
+db.athletes = [{code:'ATL-01', group:'alevin', active:true}];
+setVal('2026-09-24','ATL-01','alevin','hollow','tiempo',20);
+db.records['2026-09-24|ATL-01|test_borrado|tiempo'] = {d:'2026-09-24', a:'ATL-01', g:'alevin', t:'test_borrado', m:'tiempo', v:9.9, at: Date.now()};`);
+check('la huerfana se detecta', ev('orphanRecords().length'), 1);
+const csvRows6decies = ev('buildCSV()').trim().split('\n');
+check('la fila huerfana sale con los ids crudos, no desaparece',
+  csvRows6decies.some((l) => l.startsWith('2026-09-24,ATL-01,alevin,test_borrado,tiempo,9.9')), true);
+check('cada fila del csv, huerfana incluida, tiene 11 campos', [...new Set(csvRows6decies.map((l) => l.split(',').length))], [11]);
+check('exportar avisa del numero de filas huerfanas antes de compartir',
+  /1 fila.*test_borrado/.test(paint('screenExport()')), true);
+
+console.log('\n== 6 undecies. una correccion despues de exportar rearma el aviso de exportar (2026-09-24) ==');
+// Reloj falso y estrictamente creciente: dos escrituras separadas por menos de 1 ms real
+// (perfectamente posible entre dos llamadas seguidas a ev()) no deben poder empatar y dar
+// un falso "no hay cambios" en la comprobacion — ver §6 del LOTE 1.
+ev(`globalThis.__realNow = Date.now; let __fake = 1000; Date.now = () => ++__fake;`);
+ev(`db.athletes = [{code:'ATL-01',group:'alevin',active:true}]; db.notes = {}; db.attempts = {}; db.apparatus = {};
+setVal('2026-09-24','ATL-01','alevin','hollow','tiempo',20);
+db.lastExport = db.lastWrite;`); // se acaba de exportar, justo despues del ultimo escrito real
+check('recien exportado, sin cambios pendientes', ev('hasUnexportedChanges()'), false);
+
+let row6undecies = ev(`screenTestDetail({label:'x',tests:['hollow']}, TEST_BY_ID['hollow'])`);
+let noteBox = findNode(row6undecies, (n) => n.tagName === 'TEXTAREA');
+noteBox.value = 'aviso tardío';
+noteBox._on.change();
+check('escribir una observación, sin tocar ninguna medición, rearma el aviso', ev('hasUnexportedChanges()'), true);
+
+ev(`db.lastExport = db.lastWrite;`);
+let row6undecies2 = ev(`screenTestDetail({label:'x',tests:['elevaciones_colgada']}, TEST_BY_ID['elevaciones_colgada'])`);
+let pill = findNode(row6undecies2, (n) => n.tagName === 'BUTTON' && n._text === 'espaldera');
+pill.click();
+check('declarar el aparato rearma el aviso', ev('hasUnexportedChanges()'), true);
+
+ev(`db.lastExport = db.lastWrite;`);
+let row6undecies3 = ev(`screenTestDetail({label:'x',tests:['hollow']}, TEST_BY_ID['hollow'])`);
+let attemptsInput6u = findNode(row6undecies3, (n) => n.tagName === 'INPUT' && n.attrs.type === 'number');
+attemptsInput6u.value = '3';
+attemptsInput6u._on.change();
+check('cambiar los intentos rearma el aviso', ev('hasUnexportedChanges()'), true);
+
+ev(`db.lastExport = db.lastWrite;`);
+const currentEvaluator = ev('db.evaluator || "DJ"');
+let rosterFrag6u = ev('screenRoster()');
+let evInput = findNode(rosterFrag6u, (n) => n.tagName === 'INPUT' && n.attrs.type === 'text' && n.attrs.value === currentEvaluator);
+evInput.value = 'MP';
+evInput._on.change();
+check('cambiar el evaluador rearma el aviso', ev('hasUnexportedChanges()'), true);
+ev(`Date.now = __realNow;`); // reloj real de vuelta para el resto de las pruebas
+
+console.log('\n== 6 duodecies. localStorage corrupto no se pisa en silencio (2026-09-24) ==');
+const storeKeyName = ev('STORE_KEY');
+const corruptRaw = '{esto no es json';
+store.set(storeKeyName, corruptRaw);
+const recovered = ev('load()');
+check('load() devuelve una base en blanco', recovered.athletes.length, 0);
+check('records vacío', Object.keys(recovered.records).length, 0);
+const preservedKey = [...store.keys()].find((k) => k !== storeKeyName && store.get(k) === corruptRaw);
+check('el original dañado se conserva íntegro bajo otra clave', !!preservedKey, true);
+check('la clave original no se pisa con la base en blanco', store.get(storeKeyName), corruptRaw);
+check('la app recuerda que tuvo que recuperarse de un almacenamiento dañado', ev('storageWasCorrupt'), true);
+ev('render()');
+check('el banner avisa en pantalla, no arranca como si no hubiera pasado nada',
+  byId.banner.children.some((c) => /almacenamiento del teléfono estaba dañado/.test(c._text)), true);
+store.delete(storeKeyName); // limpio para las pruebas siguientes, que gestionan su propio volcado
+
+console.log('\n== 6 terdecies. volcado sincrono al pasar a segundo plano (2026-09-24) ==');
+ev(`setVal('2026-09-24','ATL-09','alevin','hollow','tiempo', 5);`); // 120 ms de retardo que este script nunca deja correr solo
+doc.visibilityState = 'hidden';
+fireDoc('visibilitychange');
+check('el guardado se volcó sin esperar el debounce de 120 ms',
+  JSON.parse(store.get(storeKeyName)).records['2026-09-24|ATL-09|hollow|tiempo'].v, 5);
+doc.visibilityState = 'visible';
+
+console.log('\n== 6 quaterdecies. un cronómetro vivo se persiste y se reanuda si la app se relanza (2026-09-24) ==');
+ev(`globalThis.__watchTest = mkField('bg-watch', 'ck-bg'); __watchTest.btn.click();`);
+check('arrancar el cronómetro deja su t0 en el disco, no solo en memoria',
+  ev('db.liveWatches["ck-bg"]'), ev('watches.get(__watchTest.btn).t0'));
+fireWin('pagehide');
+const persistedAfterHide = JSON.parse(store.get(storeKeyName));
+check('pagehide vuelca ese t0 al almacenamiento', persistedAfterHide.liveWatches['ck-bg'], ev('watches.get(__watchTest.btn).t0'));
+
+// "Relanzar": se olvida el estado en memoria y se reconstruye solo desde lo persistido —
+// es lo que hace restoreLiveWatches() al arrancar de verdad.
+ev(`runningWatches.delete('ck-bg'); restoreLiveWatches();
+globalThis.__watchAfter = mkField('bg-watch-relanzado', 'ck-bg');`);
+check('tras "relanzar", el campo nace corriendo, no en cero', ev('__watchAfter.btn.textContent'), '⏹');
+check('con el mismo t0 de antes de "morir", no uno nuevo',
+  ev('runningWatches.get("ck-bg").t0'), persistedAfterHide.liveWatches['ck-bg']);
+ev(`watches.get(__watchAfter.btn).t0 -= 1000; runningWatches.get('ck-bg').t0 = watches.get(__watchAfter.btn).t0;
+__watchAfter.btn.click();`);
+check('limpieza: el cronómetro de la prueba queda parado', ev('runningWatches.has("ck-bg")'), false);
+
+console.log('\n== 6 quindecies. fórmulas neutralizadas en el csv, y aviso de no escribir un nombre (2026-09-24) ==');
+check('una celda que empieza por = se neutraliza', ev(`csvCell('=SUMA(A1:A9)')`), "'=SUMA(A1:A9)");
+check('también +, - y @', ev(`[csvCell('+1'), csvCell('-1'), csvCell('@cmd')]`), ["'+1", "'-1", "'@cmd"]);
+check('un texto normal no se toca', ev(`csvCell('hollow bien ejecutado')`), 'hollow bien ejecutado');
+check('una fórmula con coma sigue entrecomillada tras neutralizar', ev(`csvCell('=A1,A2')`), `"'=A1,A2"`);
+
+ev(`db.athletes = [{code:'ATL-01',group:'alevin',active:true}];`);
+const detailG = ev(`screenTestDetail({label:'x',tests:['hollow']}, TEST_BY_ID['hollow'])`);
+check('el campo de observación avisa de no escribir un nombre', texts(detailG).some((t) => /nunca escribas un nombre/.test(t)), true);
+const rosterG = ev('screenRoster()');
+check('el campo de evaluador avisa de que solo van iniciales', texts(rosterG).some((t) => /nunca el nombre completo/.test(t)), true);
 
 console.log('\n== 7. el aviso rojo obsoleto de P1 ya no existe ==');
 check('elevaciones_colgada sin blocked', ev(`!!TEST_BY_ID['elevaciones_colgada'].blocked`), false);
