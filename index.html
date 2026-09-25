@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-app="dryland" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -11,10 +11,17 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="tokens.css">
 <style>
+/* LOTE 4: these five now alias the shared tokens (tokens.css) instead of
+   their own hex — chrome is unified across both apps. --warn/--bad stay
+   local: they're this app's own semantic colours, not part of the shared
+   al- palette, and churning them isn't worth the risk on a production app
+   in front of real athletes this week. See design-system.md's dryland
+   override block and ESTADO.md for the reasoning. */
 :root{
-  --bg:#0d1b2a; --panel:#152a3f; --panel2:#1c3651; --line:#28496b;
-  --ink:#eaf2fb; --dim:#9db4cd; --accent:#39c6a0; --warn:#f0b429; --bad:#e8615a;
+  --bg:var(--al-bg); --panel:var(--al-surface-1); --panel2:var(--al-surface-2); --line:var(--al-line);
+  --ink:var(--al-ink); --dim:var(--al-ink-muted); --accent:var(--al-ok); --warn:#f0b429; --bad:#e8615a;
   --radius:12px; --tap:52px;
 }
 *{box-sizing:border-box}
@@ -87,7 +94,9 @@ p.note{color:var(--dim);font-size:14px;margin:4px 0 12px}
   flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);
   border-radius:10px;padding:10px;min-height:var(--tap);font-size:18px;text-align:center;
 }
-.inputline input:focus{outline:2px solid var(--accent)}
+/* LOTE 4: :focus-visible only, so a tap doesn't leave a ring — this was the
+   one focus rule in the whole app; it's now folded into the global one
+   below, which also covers buttons, selects and the nav for the first time. */
 .inputline input.invalid{border-color:var(--bad);background:#3b1a1a}
 .inputline input.outrange{border-color:var(--warn);background:#3b2f10}
 .step{width:46px;min-height:var(--tap);background:var(--panel2);border:1px solid var(--line);
@@ -143,6 +152,17 @@ pre.csv{background:var(--panel2);border:1px solid var(--line);border-radius:10px
 #clock .bar2{display:flex;gap:10px;padding:0 16px 16px;width:100%;max-width:520px}
 #clock .bar2 button{flex:1;min-height:56px;border-radius:12px;background:var(--panel2);
   border:1px solid var(--line);color:var(--ink);font-size:16px}
+
+/* LOTE 4 §7: global focus ring, both apps' recipe. */
+:where(button,[role="button"],a,input,select,textarea,summary):focus-visible{
+  outline:2px solid var(--al-focus);outline-offset:2px;border-radius:inherit;
+}
+:focus:not(:focus-visible){outline:none}
+
+/* LOTE 4 §5: emoji nav icons replaced with inline SVG, stroke:currentColor,
+   so nav button.on{color:var(--accent)} recolours the icon too — emoji
+   ignored that rule entirely. */
+nav .ico svg{display:block;width:22px;height:22px;stroke:currentColor;stroke-width:1.6;fill:none}
 </style>
 </head>
 <body>
@@ -168,10 +188,22 @@ pre.csv{background:var(--panel2);border:1px solid var(--line);border-radius:10px
 </div>
 
 <nav id="tabs">
-  <button data-tab="session" class="on"><span class="ico">📋</span>Sesión</button>
-  <button data-tab="athome"><span class="ico">🏠</span>En casa<span class="badge" id="badge" hidden></span></button>
-  <button data-tab="roster"><span class="ico">👥</span>Nadadoras</button>
-  <button data-tab="export"><span class="ico">📤</span>Exportar</button>
+  <button data-tab="session" class="on">
+    <span class="ico"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg></span>
+    Sesión
+  </button>
+  <button data-tab="athome">
+    <span class="ico"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"/></svg></span>
+    En casa<span class="badge" id="badge" hidden></span>
+  </button>
+  <button data-tab="roster">
+    <span class="ico"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2c2.6.4 4.5 2.6 4.5 5.3"/></svg></span>
+    Nadadoras
+  </button>
+  <button data-tab="export">
+    <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 15V4"/><path d="M8 8l4-4 4 4"/><path d="M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></svg></span>
+    Exportar
+  </button>
 </nav>
 
 <script src="catalog.js"></script>

@@ -1,8 +1,8 @@
 /* Offline shell. Bump CACHE when any file below changes. */
-const CACHE = 'dryland-test-logger-v9';
+const CACHE = 'dryland-test-logger-v10';
 
 /* Without these the app does not run: if one is missing the install must fail loudly. */
-const CORE = ['./', 'index.html', 'catalog.js', 'app.js'];
+const CORE = ['./', 'index.html', 'catalog.js', 'app.js', 'tokens.css'];
 /* Cosmetic. A missing icon must never cost the offline cache — that happened with
    icon.svg from 2026-08-07 to 2026-08-21: addAll rejects on a single 404, the install
    never completed, and the app silently needed the network to open. */
