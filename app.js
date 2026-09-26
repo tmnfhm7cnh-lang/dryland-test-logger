@@ -106,13 +106,13 @@ function activeAthletes(groupId) {
 // hands out is the same one written on the paper no matter which group is registered first.
 // Codes are never reused: a number freed by a dropout stays dead.
 function usedNumbers() {
-  const nums = db.athletes.map((a) => parseInt(String(a.code).slice(4), 10));
+  const nums = db.athletes.map((a) => parseInt(String(a.code).slice(ATHLETE_CODE_PREFIX.length), 10));
   for (const n of db.codesUsed || []) nums.push(parseInt(n, 10));
   return new Set(nums.filter((n) => !isNaN(n)));
 }
 
 function nextCode(groupId) {
-  const fmt = (n) => `ATL-${String(n).padStart(2, '0')}`;
+  const fmt = (n) => `${ATHLETE_CODE_PREFIX}${String(n).padStart(2, '0')}`;
   const used = usedNumbers();
   const g = GROUPS.find((x) => x.id === groupId);
   if (g) {
@@ -128,7 +128,7 @@ function nextCode(groupId) {
 // Creating an athlete is what burns the code — asking for one does not.
 function claimCode(groupId) {
   const code = nextCode(groupId);
-  (db.codesUsed ||= []).push(parseInt(code.slice(4), 10));
+  (db.codesUsed ||= []).push(parseInt(code.slice(ATHLETE_CODE_PREFIX.length), 10));
   return code;
 }
 
@@ -154,13 +154,24 @@ function missingApparatus() {
   return out;
 }
 
-// Declared rounding: whole centimetres, seconds to one decimal, degrees in 5s.
+// Declared rounding, per metric type, comes from the battery document (ROUND_BY_TYPE, built in
+// catalog.js from BATTERY_AQUAMAD.metricTypes): whole centimetres, seconds to one decimal,
+// degrees in 5s. A type absent from the document (level/flag/rpe) never reaches this function.
 function roundFor(type, raw) {
   const n = parseFloat(String(raw).replace(',', '.'));
   if (isNaN(n)) return '';
-  if (type === 'seconds') return Math.round(n * 10) / 10;
-  if (type === 'deg') return Math.round(n / 5) * 5;
+  const rule = ROUND_BY_TYPE[type];
+  if (rule === 'tenth') return Math.round(n * 10) / 10;
+  if (rule === 'step5') return Math.round(n / 5) * 5;
   return Math.round(n);
+}
+
+// The stepper's +/- increment matches the type's own rounding granularity, same rule as roundFor.
+function stepFor(type) {
+  const rule = ROUND_BY_TYPE[type];
+  if (rule === 'tenth') return 0.1;
+  if (rule === 'step5') return 5;
+  return 1;
 }
 
 function getVal(date, athlete, testId, metric) {
@@ -431,7 +442,7 @@ function rangeFor(metric) {
 }
 
 function numberField(metric, value, commit, cellKey) {
-  const step = metric.type === 'deg' ? 5 : metric.type === 'seconds' ? 0.1 : 1;
+  const step = stepFor(metric.type);
   const input = el('input', {
     type: 'text',
     inputmode: metric.type === 'reps' || metric.type === 'count' ? 'numeric' : 'decimal',
@@ -796,7 +807,7 @@ function screenRoster() {
   frag.appendChild(el('p', { class: 'note', text: 'Solo códigos. El mapa código ↔ nombre vive en papel, en tu carpeta, nunca aquí. Cada grupo tiene su rango reservado —Alevín 01-12, Infantil 13-22, Junior 23-28— igual que las hojas impresas, y un código no se reutiliza jamás.' }));
 
   const group = GROUPS.find((g) => g.id === ui.group);
-  frag.appendChild(el('div', { class: 'criterion', text: `${group.label} usa de ATL-${String(group.start).padStart(2, '0')} a ATL-${String(group.start + group.size - 1).padStart(2, '0')}. Asígnalos en el pase de lista, todos de golpe y antes de medir nada.` }));
+  frag.appendChild(el('div', { class: 'criterion', text: `${group.label} usa de ${ATHLETE_CODE_PREFIX}${String(group.start).padStart(2, '0')} a ${ATHLETE_CODE_PREFIX}${String(group.start + group.size - 1).padStart(2, '0')}. Asígnalos en el pase de lista, todos de golpe y antes de medir nada.` }));
   const addOne = () => db.athletes.push({ code: claimCode(ui.group), group: ui.group, active: true });
 
   const add = el('button', { class: 'btn primary', type: 'button', text: `+ Añadir nadadora a ${group.label}` });

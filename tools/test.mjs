@@ -90,7 +90,7 @@ const sandbox = {
 sandbox.globalThis = sandbox;
 
 const ctx = vm.createContext(sandbox);
-for (const f of ['catalog.js', 'app.js']) {
+for (const f of ['battery-aquamad.js', 'catalog.js', 'app.js']) {
   vm.runInContext(fs.readFileSync(path.join(DIR, f), 'utf8'), ctx, { filename: f });
 }
 
