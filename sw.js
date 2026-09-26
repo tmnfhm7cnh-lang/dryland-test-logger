@@ -1,5 +1,5 @@
 /* Offline shell. Bump CACHE when any file below changes. */
-const CACHE = 'dryland-test-logger-v11';
+const CACHE = 'dryland-test-logger-v12';
 
 /* Without these the app does not run: if one is missing the install must fail loudly. */
 const CORE = ['./', 'index.html', 'battery-aquamad.js', 'catalog.js', 'app.js', 'tokens.css'];

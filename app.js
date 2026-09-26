@@ -71,7 +71,7 @@ function flushNow() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(db));
   } catch (err) {
-    alert('No se ha podido guardar en el teléfono. Exporta ya el CSV antes de seguir.');
+    alert(t('saveFailedAlert'));
     console.error(err);
   }
 }
@@ -485,7 +485,7 @@ function numberField(metric, value, commit, cellKey) {
 
   const line = el('div', { class: 'inputline' });
   if (metric.type === 'seconds') {
-    const btn = el('button', { class: 'watch', type: 'button', text: '⏱', title: 'Cronómetro' });
+    const btn = el('button', { class: 'watch', type: 'button', text: '⏱', title: t('watchTitle') });
     // Si esta casilla seguía corriendo antes del repintado, reengancha el mismo t0 en
     // vez de arrancar de cero: es lo que hace posible cambiar de pantalla sin perder ni
     // fabricar el tiempo.
@@ -526,7 +526,7 @@ function levelField(metric, value, commit) {
 
 function flagField(value, commit) {
   const on = value === 'si';
-  const b = el('button', { type: 'button', class: 'toggle' + (on ? ' on' : ''), text: on ? '✓ hecho' : 'marcar' });
+  const b = el('button', { type: 'button', class: 'toggle' + (on ? ' on' : ''), text: on ? t('flagDone') : t('flagMark') });
   b.addEventListener('click', () => {
     commit(on ? '' : 'si');
     render();
@@ -599,16 +599,16 @@ function screenBlocks() {
   const blocks = blocksForGroup(ui.group);
   const athletes = activeAthletes(ui.group);
   const frag = document.createDocumentFragment();
-  frag.appendChild(el('h2', { text: 'Qué se captura hoy' }));
-  frag.appendChild(el('p', { class: 'note', text: `${athletes.length} nadadoras activas en ${GROUPS.find((g) => g.id === ui.group).label}. Elige el bloque de la sesión.` }));
+  frag.appendChild(el('h2', { text: t('blocksTitle') }));
+  frag.appendChild(el('p', { class: 'note', text: t('blocksSubtitle', { count: athletes.length, group: GROUPS.find((g) => g.id === ui.group).label }) }));
 
-  const clockBtn = el('button', { class: 'btn', type: 'button', text: '⏱ Reloj de sala' });
+  const clockBtn = el('button', { class: 'btn', type: 'button', text: t('roomClockButton') });
   clockBtn.addEventListener('click', roomClockOpen);
   frag.appendChild(clockBtn);
-  frag.appendChild(el('p', { class: 'note', text: 'Para las pruebas de aguante: se abre en el iPad, se apoya donde lo vean todas y no lo toca nadie. Arrancan a la vez y cada compañera canta el código y el número cuando se rompe el criterio.' }));
+  frag.appendChild(el('p', { class: 'note', text: t('roomClockNote') }));
 
   if (!athletes.length) {
-    frag.appendChild(el('div', { class: 'criterion', text: 'Todavía no hay nadadoras en este grupo. Ve a la pestaña Nadadoras y añádelas: el código se asigna por orden de aparición, nunca por el nombre.' }));
+    frag.appendChild(el('div', { class: 'criterion', text: t('noAthletesInGroup', { rosterTab: t('navRoster') }) }));
   }
 
   for (const b of blocks) {
@@ -631,9 +631,9 @@ function screenBlocks() {
 function screenTests(block) {
   const athletes = activeAthletes(ui.group);
   const frag = document.createDocumentFragment();
-  frag.appendChild(el('button', { class: 'back', type: 'button', text: '‹ Bloques', onclick: () => go({ blockId: null }) }));
+  frag.appendChild(el('button', { class: 'back', type: 'button', text: t('backToBlocks'), onclick: () => go({ blockId: null }) }));
   frag.appendChild(el('h2', { text: block.label }));
-  frag.appendChild(el('p', { class: 'note', text: 'Orden fijo de menos a más fatigante: movilidad → control → fuerza → potencia → resistencia. Ve rotando parejas dentro de cada prueba.' }));
+  frag.appendChild(el('p', { class: 'note', text: t('testsOrderNote') }));
 
   for (const id of block.tests) {
     const test = TEST_BY_ID[id];
@@ -643,7 +643,7 @@ function screenTests(block) {
         el('strong', { text: test.label }),
         el('span', {
           class: 'pill' + (test.blocked ? ' blocked' : done === athletes.length && athletes.length ? ' ok' : ''),
-          text: test.blocked ? 'sin barra' : `${done}/${athletes.length}`,
+          text: test.blocked ? t('testBlockedPill') : `${done}/${athletes.length}`,
         }),
       ]),
       el('div', { class: 'sub', text: `${test.phase} · ${test.who}` }),
@@ -658,13 +658,13 @@ function screenTests(block) {
 function screenTestDetail(block, test) {
   const athletes = activeAthletes(ui.group);
   const frag = document.createDocumentFragment();
-  frag.appendChild(el('button', { class: 'back', type: 'button', text: '‹ ' + block.label, onclick: () => go({ testId: null }) }));
+  frag.appendChild(el('button', { class: 'back', type: 'button', text: t('backPrefix') + block.label, onclick: () => go({ testId: null }) }));
   frag.appendChild(el('h2', { text: test.label }));
 
   const crit = el('div', { class: 'criterion' + (test.blocked ? ' blocked' : '') });
   if (test.blocked) crit.appendChild(el('div', { html: '<strong>🔴 ' + test.blocked + '</strong>' }));
   crit.appendChild(el('div', { text: test.criterion }));
-  if (test.attempts) crit.appendChild(el('div', { text: `Intentos declarados: ${test.attempts}.` }));
+  if (test.attempts) crit.appendChild(el('div', { text: t('attemptsDeclared', { n: test.attempts }) }));
   // A test can carry more than one rubric metric now (e.g. `apto` plus `nivel_apoyo`
   // on pierna_90) — show every legend, labelled, instead of only the first match.
   for (const m of test.metrics.filter((m) => m.rubric)) {
@@ -675,8 +675,8 @@ function screenTestDetail(block, test) {
   if (test.apparatus) {
     const chosen = apparatusFor(ui.date, ui.group);
     const box = el('div', { class: 'criterion' + (chosen ? '' : ' blocked') });
-    box.appendChild(el('div', { html: chosen ? '<strong>Aparato: ' + chosen + '</strong>' : '<strong>🔴 Di en qué aparato se mide, antes de apuntar</strong>' }));
-    box.appendChild(el('div', { text: 'Va a la columna instrumento del CSV. Una elevación en espaldera y una en barra no son el mismo gesto: sin este dato, en diciembre no sabrás si cambió la nadadora o el aparato.' }));
+    box.appendChild(el('div', { html: chosen ? '<strong>' + t('apparatusChosen', { name: chosen }) + '</strong>' : '<strong>' + t('apparatusMissingWarning') + '</strong>' }));
+    box.appendChild(el('div', { text: t('apparatusNote') }));
     const pills = el('div', { class: 'fields' });
     for (const opt of test.apparatus) {
       pills.appendChild(el('button', {
@@ -705,7 +705,7 @@ function screenTestDetail(block, test) {
     const row = el('div', { class: 'athlete' + (complete ? ' done' : '') });
     row.appendChild(el('div', { class: 'who' }, [
       el('span', { class: 'code', text: a.code }),
-      el('span', { class: 'pill' + (complete ? ' ok' : ''), text: complete ? '✓' : 'pendiente' }),
+      el('span', { class: 'pill' + (complete ? ' ok' : ''), text: complete ? t('doneCheck') : t('donePending') }),
     ]));
 
     const fields = el('div', { class: 'fields' });
@@ -716,18 +716,18 @@ function screenTestDetail(block, test) {
       const [x, y] = test.asymmetry.map((c) => getVal(ui.date, a.code, test.id, c));
       if (x !== '' && y !== '') {
         const diff = Math.abs(x - y);
-        row.appendChild(el('div', { class: 'asym' + (diff >= 5 ? ' high' : ''), text: `Asimetría: ${diff} cm${diff >= 5 ? ' — diferencia grande entre lados' : ''}` }));
+        row.appendChild(el('div', { class: 'asym' + (diff >= 5 ? ' high' : ''), text: t(diff >= 5 ? 'asymmetryHigh' : 'asymmetryNormal', { diff }) }));
       }
     }
 
     const extra = el('details');
     const hasVideo = second.some((m) => m.atHome);
-    extra.appendChild(el('summary', { text: hasVideo ? 'Más métricas, vídeo, nota e intentos' : 'Más métricas, nota e intentos' }));
+    extra.appendChild(el('summary', { text: hasVideo ? t('moreWithVideo') : t('moreNoVideo') }));
     if (second.length) {
       const sf = el('div', { class: 'fields' });
       for (const m of second) {
         const f = fieldFor(m, ui.date, a.code, ui.group, test);
-        if (m.atHome) f.querySelector('label').textContent += m.tag ? ` · ${m.tag}` : ' · de vídeo';
+        if (m.atHome) f.querySelector('label').textContent += m.tag ? ` · ${m.tag}` : t('atHomeTagSuffix');
         sf.appendChild(f);
       }
       extra.appendChild(sf);
@@ -742,9 +742,9 @@ function screenTestDetail(block, test) {
       touch();
       save();
     });
-    extra.appendChild(el('div', { class: 'field' }, [el('label', { text: 'Intentos usados' }), el('div', { class: 'inputline' }, [attemptsInput])]));
+    extra.appendChild(el('div', { class: 'field' }, [el('label', { text: t('attemptsUsedLabel') }), el('div', { class: 'inputline' }, [attemptsInput])]));
 
-    const note = el('textarea', { placeholder: 'Observación (va al CSV)' });
+    const note = el('textarea', { placeholder: t('observationPlaceholder') });
     note.value = db.notes[tk] || '';
     note.addEventListener('change', () => {
       const v = note.value.trim();
@@ -754,25 +754,25 @@ function screenTestDetail(block, test) {
       save();
     });
     extra.appendChild(el('div', { class: 'field' }, [
-      el('label', { text: 'Observación' }), note,
-      el('p', { class: 'note', text: 'Va al CSV compartido: describe el gesto, nunca escribas un nombre.' }),
+      el('label', { text: t('observationLabel') }), note,
+      el('p', { class: 'note', text: t('observationNote') }),
     ]));
     row.appendChild(extra);
     frag.appendChild(row);
   }
 
-  if (!athletes.length) frag.appendChild(el('div', { class: 'criterion', text: 'No hay nadadoras activas en este grupo.' }));
+  if (!athletes.length) frag.appendChild(el('div', { class: 'criterion', text: t('noActiveAthletes') }));
   return frag;
 }
 
 function screenAtHome() {
   const frag = document.createDocumentFragment();
-  frag.appendChild(el('h2', { text: 'Análisis en casa' }));
-  frag.appendChild(el('p', { class: 'note', text: 'Lo que sale del vídeo, de la foto o de My Jump Lab. Pásalo el mismo día: My Jump Lab no guarda tu serie de forma recuperable.' }));
+  frag.appendChild(el('h2', { text: t('atHomeTitle') }));
+  frag.appendChild(el('p', { class: 'note', text: t('atHomeNote') }));
 
   const pending = pendingAtHome();
   if (!pending.length) {
-    frag.appendChild(el('div', { class: 'criterion', text: 'Nada pendiente. Aquí aparecerán las alturas de salto, los grados del puente y los ángulos en cuanto captures algo en sesión.' }));
+    frag.appendChild(el('div', { class: 'criterion', text: t('atHomeEmpty') }));
     return frag;
   }
 
@@ -787,7 +787,7 @@ function screenAtHome() {
     row.appendChild(el('div', { class: 'who' }, [
       el('span', { class: 'code', text: p.athlete }),
       el('button', {
-        class: 'pill', type: 'button', text: 'no aplica',
+        class: 'pill', type: 'button', text: t('atHomeSkip'),
         onclick: () => {
           db.skipped[key(p.date, p.athlete, p.test.id, p.metric.csv)] = true;
           save();
@@ -801,16 +801,26 @@ function screenAtHome() {
   return frag;
 }
 
+// Primer y último número reservado de una cohorte, y el código completo (con prefijo) de
+// cada uno — mismo cómputo que ya hacía el rango "usa de X a Y", ahora compartido con el
+// resumen de todos los grupos que abre la pestaña.
+function codeRangeText(g) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return { from: `${ATHLETE_CODE_PREFIX}${pad(g.start)}`, to: `${ATHLETE_CODE_PREFIX}${pad(g.start + g.size - 1)}`, fromNum: pad(g.start), toNum: pad(g.start + g.size - 1) };
+}
+
 function screenRoster() {
   const frag = document.createDocumentFragment();
-  frag.appendChild(el('h2', { text: 'Nadadoras' }));
-  frag.appendChild(el('p', { class: 'note', text: 'Solo códigos. El mapa código ↔ nombre vive en papel, en tu carpeta, nunca aquí. Cada grupo tiene su rango reservado —Alevín 01-12, Infantil 13-22, Junior 23-28— igual que las hojas impresas, y un código no se reutiliza jamás.' }));
+  frag.appendChild(el('h2', { text: t('rosterTitle') }));
+  const ranges = GROUPS.map((g) => { const r = codeRangeText(g); return `${g.label} ${r.fromNum}-${r.toNum}`; }).join(', ');
+  frag.appendChild(el('p', { class: 'note', text: t('rosterNote', { ranges }) }));
 
   const group = GROUPS.find((g) => g.id === ui.group);
-  frag.appendChild(el('div', { class: 'criterion', text: `${group.label} usa de ${ATHLETE_CODE_PREFIX}${String(group.start).padStart(2, '0')} a ${ATHLETE_CODE_PREFIX}${String(group.start + group.size - 1).padStart(2, '0')}. Asígnalos en el pase de lista, todos de golpe y antes de medir nada.` }));
+  const range = codeRangeText(group);
+  frag.appendChild(el('div', { class: 'criterion', text: t('rosterGroupRange', { group: group.label, from: range.from, to: range.to }) }));
   const addOne = () => db.athletes.push({ code: claimCode(ui.group), group: ui.group, active: true });
 
-  const add = el('button', { class: 'btn primary', type: 'button', text: `+ Añadir nadadora a ${group.label}` });
+  const add = el('button', { class: 'btn primary', type: 'button', text: t('addAthlete', { group: group.label }) });
   add.addEventListener('click', () => {
     addOne();
     save();
@@ -820,7 +830,7 @@ function screenRoster() {
 
   const missing = group.size - activeAthletes(ui.group).length;
   if (missing > 0) {
-    const bulk = el('button', { class: 'btn', type: 'button', text: `+ Completar el grupo: crear ${missing} códigos de golpe` });
+    const bulk = el('button', { class: 'btn', type: 'button', text: t('completeGroup', { n: missing }) });
     bulk.addEventListener('click', () => {
       for (let i = 0; i < missing; i++) addOne();
       save();
@@ -831,7 +841,7 @@ function screenRoster() {
 
   for (const g of GROUPS) {
     const list = db.athletes.filter((a) => a.group === g.id).sort((a, b) => a.code.localeCompare(b.code));
-    frag.appendChild(el('h3', { text: `${g.label} — ${list.filter((a) => a.active !== false).length} activas de ${g.size} previstas` }));
+    frag.appendChild(el('h3', { text: t('groupHeader', { group: g.label, active: list.filter((a) => a.active !== false).length, size: g.size }) }));
     for (const a of list) {
       const card = el('div', { class: 'athlete' });
       const move = el('select');
@@ -843,7 +853,7 @@ function screenRoster() {
       });
       const toggle = el('button', {
         class: 'pill' + (a.active !== false ? ' ok' : ''), type: 'button',
-        text: a.active !== false ? 'activa' : 'de baja',
+        text: a.active !== false ? t('athleteActive') : t('athleteInactive'),
         onclick: () => {
           a.active = a.active === false;
           save();
@@ -851,7 +861,7 @@ function screenRoster() {
         },
       });
       card.appendChild(el('div', { class: 'who' }, [el('span', { class: 'code', text: a.code }), toggle]));
-      card.appendChild(el('div', { class: 'fields' }, [el('div', { class: 'field' }, [el('label', { text: 'Grupo' }), move])]));
+      card.appendChild(el('div', { class: 'fields' }, [el('div', { class: 'field' }, [el('label', { text: t('fieldGroupLabel') }), move])]));
       frag.appendChild(card);
     }
   }
@@ -862,10 +872,10 @@ function screenRoster() {
     touch();
     save();
   });
-  frag.appendChild(el('h3', { text: 'Evaluador' }));
+  frag.appendChild(el('h3', { text: t('evaluatorHeader') }));
   frag.appendChild(el('div', { class: 'athlete' }, [el('div', { class: 'field' }, [
-    el('label', { text: 'Iniciales que van a la columna evaluador' }), el('div', { class: 'inputline' }, [ev]),
-    el('p', { class: 'note', text: 'Solo iniciales (p. ej. DJ), nunca el nombre completo.' }),
+    el('label', { text: t('evaluatorFieldLabel') }), el('div', { class: 'inputline' }, [ev]),
+    el('p', { class: 'note', text: t('evaluatorNote') }),
   ])]));
   return frag;
 }
@@ -875,19 +885,19 @@ function screenExport() {
   const total = Object.keys(db.records).length;
   const pend = unexportedCount();
   const dirty = hasUnexportedChanges();
-  frag.appendChild(el('h2', { text: 'Exportar' }));
+  frag.appendChild(el('h2', { text: t('exportTitle') }));
   frag.appendChild(el('p', { class: 'note', text: dirty || pend
-    ? `${total} mediciones guardadas · ${pend} sin exportar${!pend ? ' (cambios en nota, aparato, intentos o evaluador)' : ''}.`
-    : `${total} mediciones guardadas · nada sin exportar.` }));
-  frag.appendChild(el('div', { class: 'criterion', text: 'Exporta al acabar cada sesión, sin excepción. El navegador del iPhone puede borrar los datos de una web que no se usa; el CSV en OneDrive no.' }));
+    ? t('exportSummaryDirty', { total, pend, extra: !pend ? t('exportExtraChanges') : '' })
+    : t('exportSummaryClean', { total }) }));
+  frag.appendChild(el('div', { class: 'criterion', text: t('exportAlwaysNote') }));
 
   const orphans = orphanRecords();
   if (orphans.length) {
     const ids = [...new Set(orphans.map((r) => r.t))].join(', ');
-    frag.appendChild(el('div', { class: 'criterion blocked', text: `⚠ ${orphans.length} fila(s) de una prueba que ya no está en el catálogo (${ids}). Se exportan igual con el id crudo — revísalas antes de compartir.` }));
+    frag.appendChild(el('div', { class: 'criterion blocked', text: t('orphansWarning', { n: orphans.length, ids }) }));
   }
 
-  const csvBtn = el('button', { class: 'btn primary', type: 'button', text: '📤 Compartir CSV → Archivos / OneDrive' });
+  const csvBtn = el('button', { class: 'btn primary', type: 'button', text: t('shareCSV') });
   csvBtn.addEventListener('click', async () => {
     const ok = await shareFile(CSV_NAME, buildCSV(), 'text/csv');
     if (ok) {
@@ -898,7 +908,7 @@ function screenExport() {
   });
   frag.appendChild(csvBtn);
 
-  const jsonBtn = el('button', { class: 'btn', type: 'button', text: '💾 Copia de seguridad completa (JSON)' });
+  const jsonBtn = el('button', { class: 'btn', type: 'button', text: t('backupJSON') });
   jsonBtn.addEventListener('click', () => shareFile(`backup-${todayISO()}.json`, JSON.stringify(db, null, 1), 'application/json'));
   frag.appendChild(jsonBtn);
 
@@ -909,35 +919,35 @@ function screenExport() {
     try {
       const data = JSON.parse(await file.text());
       if (!data || typeof data.records !== 'object') throw new Error('formato');
-      if (!confirm(`Restaurar ${Object.keys(data.records).length} mediciones. Se reemplaza todo lo que hay ahora. ¿Seguro?`)) return;
+      if (!confirm(t('restoreConfirm', { n: Object.keys(data.records).length }))) return;
       Object.assign(db, blankDB(), data);
       save();
       render();
     } catch (err) {
-      alert('Ese archivo no es una copia válida.');
+      alert(t('restoreInvalid'));
     }
   });
-  const restoreBtn = el('button', { class: 'btn ghost', type: 'button', text: '↩︎ Restaurar desde una copia', onclick: () => restore.click() });
+  const restoreBtn = el('button', { class: 'btn ghost', type: 'button', text: t('restoreButton'), onclick: () => restore.click() });
   frag.appendChild(restoreBtn);
   frag.appendChild(restore);
 
-  frag.appendChild(el('h3', { text: 'Vista previa' }));
+  frag.appendChild(el('h3', { text: t('previewHeader') }));
   frag.appendChild(el('pre', { class: 'csv', text: buildCSV().split('\n').slice(0, 40).join('\n') || CSV_HEADER }));
 
   // Two taps plus a confirm, and it names what it is about to destroy. There was no way at all to
   // clear this app before 2026-08-11, which left the fake data of a rehearsal stuck on the phone.
-  frag.appendChild(el('h3', { text: 'Empezar de cero' }));
-  frag.appendChild(el('div', { class: 'criterion blocked', text: 'Borra las mediciones, las nadadoras y las notas de este teléfono. No hay deshacer: exporta antes si hay algo que quieras conservar.' }));
-  const wipe = el('button', { class: 'btn ghost', type: 'button', text: '🗑 Borrar todo' });
+  frag.appendChild(el('h3', { text: t('resetHeader') }));
+  frag.appendChild(el('div', { class: 'criterion blocked', text: t('resetWarning') }));
+  const wipe = el('button', { class: 'btn ghost', type: 'button', text: t('wipeButton') });
   let armed = false;
   wipe.addEventListener('click', () => {
     if (!armed) {
       armed = true;
-      wipe.textContent = `Pulsa otra vez para borrar ${total} mediciones y ${db.athletes.length} nadadoras`;
+      wipe.textContent = t('wipeArm', { total, n: db.athletes.length });
       wipe.className = 'btn primary';
       return;
     }
-    if (!confirm(`Se borran ${total} mediciones y ${db.athletes.length} nadadoras. ¿Seguro?`)) {
+    if (!confirm(t('wipeConfirm', { total, n: db.athletes.length }))) {
       armed = false;
       render();
       return;
@@ -970,18 +980,18 @@ function render() {
 
   $banner.innerHTML = '';
   if (storageWasCorrupt) {
-    $banner.appendChild(el('div', { class: 'banner bad', text: 'El almacenamiento del teléfono estaba dañado: se ha empezado de cero. El original se conserva sin tocar bajo otra clave — avísame antes de seguir.' }));
+    $banner.appendChild(el('div', { class: 'banner bad', text: t('storageCorruptBanner') }));
   }
   const pend = unexportedCount();
-  if (pend > 0) $banner.appendChild(el('div', { class: 'banner warn', text: `${pend} mediciones sin exportar. Comparte el CSV al acabar la sesión.` }));
-  else if (hasUnexportedChanges()) $banner.appendChild(el('div', { class: 'banner warn', text: 'Hay cambios sin exportar (nota, aparato, intentos o evaluador). Comparte el CSV al acabar la sesión.' }));
+  if (pend > 0) $banner.appendChild(el('div', { class: 'banner warn', text: t('unexportedBanner', { n: pend }) }));
+  else if (hasUnexportedChanges()) $banner.appendChild(el('div', { class: 'banner warn', text: t('unexportedChangesBanner') }));
   const noApp = missingApparatus();
   if (noApp.length) {
     const where = noApp.map((k) => k.split('|').reverse().join(' ')).join(', ');
-    $banner.appendChild(el('div', { class: 'banner warn', text: `Falta declarar el aparato de colgada en: ${where}. Sin él, esas filas salen con la columna instrumento vacía.` }));
+    $banner.appendChild(el('div', { class: 'banner warn', text: t('missingApparatusBanner', { where }) }));
   }
   const orphans = orphanRecords();
-  if (orphans.length) $banner.appendChild(el('div', { class: 'banner warn', text: `${orphans.length} fila(s) de una prueba que ya no está en el catálogo. Revísalas en Exportar.` }));
+  if (orphans.length) $banner.appendChild(el('div', { class: 'banner warn', text: t('orphansBanner', { n: orphans.length }) }));
 
   $view.innerHTML = '';
   if (ui.tab === 'session') {
@@ -994,6 +1004,27 @@ function render() {
   else if (ui.tab === 'roster') $view.appendChild(screenRoster());
   else $view.appendChild(screenExport());
 }
+
+// Las cadenas de chrome que vive en index.html (título, aria-labels, pestañas, reloj de
+// sala) no cambian con la navegación — se fijan una vez al arrancar, no en cada render().
+// Segunda mitad del punto 1 del LOTE 5: index.html deja de llevar texto en español propio,
+// para que una segunda batería (otro club, otro deporte) no tenga que tocar el HTML.
+const NAV_LABEL_KEY = { session: 'navSession', athome: 'navAtHome', roster: 'navRoster', export: 'navExport' };
+function applyStrings() {
+  document.title = t('appTitle');
+  const appNameMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (appNameMeta) appNameMeta.setAttribute('content', t('appShortTitle'));
+  $group.setAttribute('aria-label', t('ariaGroup'));
+  $date.setAttribute('aria-label', t('ariaDate'));
+  document.getElementById('clockHint').textContent = t('roomClockHint');
+  document.getElementById('clockZero').textContent = t('roomClockZero');
+  document.getElementById('clockExit').textContent = t('roomClockExit');
+  for (const b of document.querySelectorAll('#tabs button')) {
+    const label = b.querySelector('.label');
+    if (label) label.textContent = t(NAV_LABEL_KEY[b.dataset.tab]);
+  }
+}
+applyStrings();
 
 document.getElementById('clockFace').addEventListener('click', roomClockToggle);
 document.getElementById('clockZero').addEventListener('click', roomClockZero);

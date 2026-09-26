@@ -368,4 +368,105 @@ const BATTERY_AQUAMAD = {
       metrics: [{ csv: 'rpe', label: 'RPE', type: 'rpe', unit: '0-10' }],
     },
   ],
+
+  /*
+   * Segunda mitad del punto 1 del LOTE 5: "todas las cadenas de la interfaz". Antes vivían
+   * escritas a mano en app.js e index.html — el chrome de la app (pestañas, cabeceras,
+   * avisos, botones, diálogos), no el contenido de ninguna prueba (eso ya estaba arriba).
+   * Una app para otro club u otro deporte querría su propio "Nadadoras"/"nadadora" y su
+   * propio texto de cabecera; no querría, en cambio, reescribir catalog.js ni app.js.
+   *
+   * `{token}` marca un hueco que rellena app.js con t(key, vars) — ver catalog.js. Los
+   * emoji/símbolos (⏱ 📤 💾 🔴 ⚠ ↩︎ 🗑 ✓ ‹) se dejan dentro de la cadena a propósito: son
+   * parte del texto que un traductor tocaría también, no marcado de app.js.
+   */
+  strings: {
+    appTitle: 'Registro de tests · seco',
+    appShortTitle: 'Test seco',
+    ariaGroup: 'Grupo',
+    ariaDate: 'Fecha',
+
+    navSession: 'Sesión',
+    navAtHome: 'En casa',
+    navRoster: 'Nadadoras',
+    navExport: 'Exportar',
+
+    watchTitle: 'Cronómetro',
+    roomClockButton: '⏱ Reloj de sala',
+    roomClockNote: 'Para las pruebas de aguante: se abre en el iPad, se apoya donde lo vean todas y no lo toca nadie. Arrancan a la vez y cada compañera canta el código y el número cuando se rompe el criterio.',
+    roomClockHint: 'Toca el número para arrancar y parar. Nadie más toca esta pantalla.',
+    roomClockZero: 'Poner a cero',
+    roomClockExit: 'Salir',
+
+    backToBlocks: '‹ Bloques',
+    backPrefix: '‹ ',
+    blocksTitle: 'Qué se captura hoy',
+    blocksSubtitle: '{count} nadadoras activas en {group}. Elige el bloque de la sesión.',
+    noAthletesInGroup: 'Todavía no hay nadadoras en este grupo. Ve a la pestaña {rosterTab} y añádelas: el código se asigna por orden de aparición, nunca por el nombre.',
+    testsOrderNote: 'Orden fijo de menos a más fatigante: movilidad → control → fuerza → potencia → resistencia. Ve rotando parejas dentro de cada prueba.',
+    testBlockedPill: 'sin barra',
+
+    attemptsDeclared: 'Intentos declarados: {n}.',
+    apparatusMissingWarning: '🔴 Di en qué aparato se mide, antes de apuntar',
+    apparatusChosen: 'Aparato: {name}',
+    apparatusNote: 'Va a la columna instrumento del CSV. Una elevación en espaldera y una en barra no son el mismo gesto: sin este dato, en diciembre no sabrás si cambió la nadadora o el aparato.',
+    asymmetryHigh: 'Asimetría: {diff} cm — diferencia grande entre lados',
+    asymmetryNormal: 'Asimetría: {diff} cm',
+    moreWithVideo: 'Más métricas, vídeo, nota e intentos',
+    moreNoVideo: 'Más métricas, nota e intentos',
+    atHomeTagSuffix: ' · de vídeo',
+    attemptsUsedLabel: 'Intentos usados',
+    observationPlaceholder: 'Observación (va al CSV)',
+    observationLabel: 'Observación',
+    observationNote: 'Va al CSV compartido: describe el gesto, nunca escribas un nombre.',
+    noActiveAthletes: 'No hay nadadoras activas en este grupo.',
+    doneCheck: '✓',
+    donePending: 'pendiente',
+
+    atHomeTitle: 'Análisis en casa',
+    atHomeNote: 'Lo que sale del vídeo, de la foto o de My Jump Lab. Pásalo el mismo día: My Jump Lab no guarda tu serie de forma recuperable.',
+    atHomeEmpty: 'Nada pendiente. Aquí aparecerán las alturas de salto, los grados del puente y los ángulos en cuanto captures algo en sesión.',
+    atHomeSkip: 'no aplica',
+
+    rosterTitle: 'Nadadoras',
+    rosterNote: 'Solo códigos. El mapa código ↔ nombre vive en papel, en tu carpeta, nunca aquí. Cada grupo tiene su rango reservado —{ranges}— igual que las hojas impresas, y un código no se reutiliza jamás.',
+    rosterGroupRange: '{group} usa de {from} a {to}. Asígnalos en el pase de lista, todos de golpe y antes de medir nada.',
+    addAthlete: '+ Añadir nadadora a {group}',
+    completeGroup: '+ Completar el grupo: crear {n} códigos de golpe',
+    groupHeader: '{group} — {active} activas de {size} previstas',
+    athleteActive: 'activa',
+    athleteInactive: 'de baja',
+    fieldGroupLabel: 'Grupo',
+    evaluatorHeader: 'Evaluador',
+    evaluatorFieldLabel: 'Iniciales que van a la columna evaluador',
+    evaluatorNote: 'Solo iniciales (p. ej. DJ), nunca el nombre completo.',
+
+    exportTitle: 'Exportar',
+    exportSummaryDirty: '{total} mediciones guardadas · {pend} sin exportar{extra}.',
+    exportSummaryClean: '{total} mediciones guardadas · nada sin exportar.',
+    exportExtraChanges: ' (cambios en nota, aparato, intentos o evaluador)',
+    exportAlwaysNote: 'Exporta al acabar cada sesión, sin excepción. El navegador del iPhone puede borrar los datos de una web que no se usa; el CSV en OneDrive no.',
+    orphansWarning: '⚠ {n} fila(s) de una prueba que ya no está en el catálogo ({ids}). Se exportan igual con el id crudo — revísalas antes de compartir.',
+    shareCSV: '📤 Compartir CSV → Archivos / OneDrive',
+    backupJSON: '💾 Copia de seguridad completa (JSON)',
+    restoreConfirm: 'Restaurar {n} mediciones. Se reemplaza todo lo que hay ahora. ¿Seguro?',
+    restoreInvalid: 'Ese archivo no es una copia válida.',
+    restoreButton: '↩︎ Restaurar desde una copia',
+    previewHeader: 'Vista previa',
+    resetHeader: 'Empezar de cero',
+    resetWarning: 'Borra las mediciones, las nadadoras y las notas de este teléfono. No hay deshacer: exporta antes si hay algo que quieras conservar.',
+    wipeButton: '🗑 Borrar todo',
+    wipeArm: 'Pulsa otra vez para borrar {total} mediciones y {n} nadadoras',
+    wipeConfirm: 'Se borran {total} mediciones y {n} nadadoras. ¿Seguro?',
+
+    storageCorruptBanner: 'El almacenamiento del teléfono estaba dañado: se ha empezado de cero. El original se conserva sin tocar bajo otra clave — avísame antes de seguir.',
+    unexportedBanner: '{n} mediciones sin exportar. Comparte el CSV al acabar la sesión.',
+    unexportedChangesBanner: 'Hay cambios sin exportar (nota, aparato, intentos o evaluador). Comparte el CSV al acabar la sesión.',
+    missingApparatusBanner: 'Falta declarar el aparato de colgada en: {where}. Sin él, esas filas salen con la columna instrumento vacía.',
+    orphansBanner: '{n} fila(s) de una prueba que ya no está en el catálogo. Revísalas en Exportar.',
+
+    saveFailedAlert: 'No se ha podido guardar en el teléfono. Exporta ya el CSV antes de seguir.',
+    flagDone: '✓ hecho',
+    flagMark: 'marcar',
+  },
 };

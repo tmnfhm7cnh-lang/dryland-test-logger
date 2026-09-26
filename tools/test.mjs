@@ -506,5 +506,28 @@ const missing = [...referenced].filter((f) => !fs.existsSync(path.join(DIR, f)))
 check('ningun archivo referenciado falta', missing, []);
 check('el apple-touch-icon es PNG', /rel="apple-touch-icon" href="[^"]+\.png"/.test(html), true);
 
+console.log('\n== 9. todas las cadenas de la interfaz vienen del documento, no de app.js (LOTE 5 §1, 2026-09-26) ==');
+// Segunda mitad del punto 1: antes de este cambio, app.js e index.html llevaban el texto
+// de pantalla escrito a mano. Comprobar "la app funciona" no habría cazado una cadena que
+// se hubiera quedado atrás — esto busca literales en español fuera del documento.
+const appSrc = fs.readFileSync(path.join(DIR, 'app.js'), 'utf8');
+const hardcodedInAppJs = [...appSrc.matchAll(/(?:text|html|placeholder|title):\s*'[^']*[áéíóúñÁÉÍÓÚÑ][^']*'/g)].map((m) => m[0]);
+check('ningun literal de pantalla en español queda escrito a mano en app.js', hardcodedInAppJs, []);
+const navWordsInHtml = ['Sesión', 'Nadadoras', 'Exportar', 'En casa', 'Poner a cero'].filter((w) => html.includes(w));
+check('index.html ya no lleva las etiquetas de pestaña ni el reloj de sala en el marcado', navWordsInHtml, []);
+
+// Toda llamada a t('clave-literal') tiene que resolver contra BATTERY_AQUAMAD.strings — una
+// clave mal escrita en app.js pasaría desapercibida hasta abrir la pantalla exacta que la usa.
+const literalKeys = [...new Set([...appSrc.matchAll(/\bt\('([a-zA-Z]+)'/g)].map((m) => m[1]))];
+const stringsDoc = ev('BATTERY_AQUAMAD.strings');
+const missingKeys = literalKeys.filter((k) => !(k in stringsDoc));
+check(`las ${literalKeys.length} claves literales usadas en app.js existen en BATTERY_AQUAMAD.strings`, missingKeys, []);
+
+check('t() sustituye un token', ev(`t('attemptsDeclared', {n: 3})`), 'Intentos declarados: 3.');
+check('t() sustituye varios tokens', ev(`t('groupHeader', {group:'Alevín', active:2, size:12})`), 'Alevín — 2 activas de 12 previstas');
+check('el resumen de rangos de Nadadoras sale de GROUPS, no de un texto fijo',
+  ev(`GROUPS.map((g) => g.label + ' ' + String(g.start).padStart(2,'0') + '-' + String(g.start+g.size-1).padStart(2,'0')).join(', ')`),
+  'Alevín 01-12, Infantil 13-22, Junior 23-28');
+
 console.log(fails ? `\n${fails} COMPROBACIONES FALLIDAS` : '\ntodas las comprobaciones pasan');
 process.exit(fails ? 1 : 0);

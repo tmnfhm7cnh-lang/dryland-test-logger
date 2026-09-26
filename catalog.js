@@ -20,6 +20,16 @@ const PHASES = BATTERY_AQUAMAD.phases;
 const RANGE_BY_TYPE = Object.fromEntries(Object.entries(BATTERY_AQUAMAD.metricTypes).map(([type, def]) => [type, def.range]));
 const ROUND_BY_TYPE = Object.fromEntries(Object.entries(BATTERY_AQUAMAD.metricTypes).map(([type, def]) => [type, def.round]));
 
+// Segunda mitad del punto 1 del LOTE 5: las cadenas de la interfaz también viven en el
+// documento, no en app.js. `t()` es el único trozo de código que las acompaña: sustituye
+// `{token}` por el valor de `vars[token]`, nada más — la propia cadena sigue siendo dato.
+const STRINGS = BATTERY_AQUAMAD.strings;
+function t(key, vars) {
+  let s = STRINGS[key];
+  if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(v);
+  return s;
+}
+
 // A metric's `rubric` is a key into BATTERY_AQUAMAD.rubrics in the document (so the same rubric
 // text isn't repeated per test); resolve it to the actual option array here, once, so the rest
 // of the app keeps reading `metric.rubric` as an array like it always did.

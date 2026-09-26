@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#0d1b2a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Test seco">
-<title>Registro de tests · seco</title>
+<meta name="apple-mobile-web-app-title" content=""><!-- rellenado por applyStrings() en app.js, desde BATTERY_AQUAMAD.strings -->
+<title></title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -168,8 +168,8 @@ nav .ico svg{display:block;width:22px;height:22px;stroke:currentColor;stroke-wid
 <body>
 <header>
   <div class="topline">
-    <select id="group" aria-label="Grupo"></select>
-    <input type="date" id="date" aria-label="Fecha">
+    <select id="group"></select>
+    <input type="date" id="date">
   </div>
   <div id="banner"></div>
 </header>
@@ -180,29 +180,29 @@ nav .ico svg{display:block;width:22px;height:22px;stroke:currentColor;stroke-wid
   <div class="face" id="clockFace">
     <span class="secs" id="clockSecs">0</span><span class="tenths" id="clockTenths">.0</span>
   </div>
-  <div class="hint">Toca el número para arrancar y parar. Nadie más toca esta pantalla.</div>
+  <div class="hint" id="clockHint"></div>
   <div class="bar2">
-    <button type="button" id="clockZero">Poner a cero</button>
-    <button type="button" id="clockExit">Salir</button>
+    <button type="button" id="clockZero"></button>
+    <button type="button" id="clockExit"></button>
   </div>
 </div>
 
 <nav id="tabs">
   <button data-tab="session" class="on">
     <span class="ico"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg></span>
-    Sesión
+    <span class="label"></span>
   </button>
   <button data-tab="athome">
     <span class="ico"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"/></svg></span>
-    En casa<span class="badge" id="badge" hidden></span>
+    <span class="label"></span><span class="badge" id="badge" hidden></span>
   </button>
   <button data-tab="roster">
     <span class="ico"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2c2.6.4 4.5 2.6 4.5 5.3"/></svg></span>
-    Nadadoras
+    <span class="label"></span>
   </button>
   <button data-tab="export">
     <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 15V4"/><path d="M8 8l4-4 4 4"/><path d="M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></svg></span>
-    Exportar
+    <span class="label"></span>
   </button>
 </nav>
 
