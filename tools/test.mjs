@@ -137,6 +137,17 @@ ev(`db.codesUsed = []; db.athletes = [{code:'ATL-07',group:'alevin',active:false
 check('una copia antigua sin cementerio respeta los codigos que ve', ev(`nextCode('alevin')`), 'ATL-01');
 check('y no reparte el 07 que ya existe', ev(`db.athletes.some(a=>a.code===nextCode('alevin'))`), false);
 
+// 2026-09-26: llegó una 13a a Alevin con Junior a medias (solo 3 de sus 6 huecos ocupados) — el
+// caso real que motivó el cambio. Antes de este cambio, nextCode('alevin') miraba solo los
+// numeros usados (el 28 no estaba entre ellos) y devolvia 'ATL-26' — un hueco libre DENTRO del
+// propio 23-28 de Junior — exactamente lo que el comentario de la funcion decia que no iba a
+// pasar.
+ev(`db.athletes = []; db.codesUsed = [];
+for (let i=1;i<=12;i++) db.athletes.push({code: claimCode('alevin'), group:'alevin', active:true});
+for (let i=1;i<=3;i++) db.athletes.push({code: claimCode('junior'), group:'junior', active:true});`);
+check('Alevin llena (12/12) y Junior a medias (3/6) antes del caso real', [ev(`db.athletes.filter(a=>a.group==='alevin').length`), ev(`db.athletes.filter(a=>a.group==='junior').length`)], [12, 3]);
+check('la 13a de Alevin no roba un hueco libre de Junior (23-28)', ev(`nextCode('alevin')`), 'ATL-29');
+
 console.log('\n== 4. el aparato viaja a la columna instrumento, congelado al escribir (2026-09-24 — antes se leia en vivo al exportar y reescribia el pasado; decision de Daniel, §5 del LOTE 1) ==');
 ev(`db.athletes = [{code:'ATL-01',group:'alevin',active:true}];
 setVal('2026-09-22','ATL-01','alevin','elevaciones_colgada','reps',8);

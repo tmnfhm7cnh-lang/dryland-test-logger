@@ -119,8 +119,14 @@ function nextCode(groupId) {
     for (let n = g.start; n <= g.start + g.size - 1; n++) if (!used.has(n)) return fmt(n);
   }
   // Range full: an athlete the printed sheets did not foresee. Land past every code ever used
-  // rather than borrowing the next group's range.
-  let n = used.size ? Math.max(...used) + 1 : 1;
+  // AND past every group's own reserved range — not just the numbers some group has actually
+  // claimed so far. Before 2026-09-26 this only looked at usedNumbers(), so a 13th Alevín girl
+  // arriving while Junior still had open slots (registered late, or never fills all 6) would
+  // have landed inside 23-28 — Junior's own printed sheet, not "past every group's range" as
+  // the comment already promised. GROUPS never changes size mid-season (a cohort's own range is
+  // fixed at the printed sheets), so this reserved ceiling is as permanent as the ranges above.
+  const reservedCeiling = Math.max(0, ...GROUPS.map((x) => x.start + x.size - 1));
+  let n = Math.max(reservedCeiling, used.size ? Math.max(...used) : 0) + 1;
   while (used.has(n)) n++;
   return fmt(n);
 }
