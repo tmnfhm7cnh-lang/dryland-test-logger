@@ -122,6 +122,17 @@ summary{color:var(--dim);font-size:14px;padding:8px 0;cursor:pointer}
   padding:10px;font-size:14px;color:var(--dim);margin-bottom:12px}
 .criterion.blocked{border-left-color:var(--bad)}
 
+/* LOTE 5 §3: historial por atleta. Una prueba con 6-8 métricas no cabe entera en 375px, así
+   que la tabla se desplaza en horizontal en vez de recortarse — el borde vertical del propio
+   panel ya marca dónde empieza y acaba. */
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:14px;
+  border:1px solid var(--line);border-radius:var(--radius)}
+table.history{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+table.history th,table.history td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
+table.history th{color:var(--dim);font-weight:600;font-size:12px;background:var(--panel2)}
+table.history tbody tr:last-child td{border-bottom:none}
+table.history .history-note td{white-space:normal;color:var(--dim);font-style:italic;font-size:12px}
+
 nav{
   position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;
   background:var(--panel);border-top:1px solid var(--line);
@@ -198,6 +209,10 @@ nav .ico svg{display:block;width:22px;height:22px;stroke:currentColor;stroke-wid
   </button>
   <button data-tab="roster">
     <span class="ico"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2c2.6.4 4.5 2.6 4.5 5.3"/></svg></span>
+    <span class="label"></span>
+  </button>
+  <button data-tab="history">
+    <span class="ico"><svg viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M7 15l4-5 3 3 5-7"/></svg></span>
     <span class="label"></span>
   </button>
   <button data-tab="export">

@@ -319,7 +319,7 @@ async function shareFile(name, text, mime) {
 
 /* ------------------------------------------------------------------- view */
 
-const ui = Object.assign({ tab: 'session', group: 'alevin', date: todayISO(), blockId: null, testId: null }, db.ui);
+const ui = Object.assign({ tab: 'session', group: 'alevin', date: todayISO(), blockId: null, testId: null, historyAthlete: null }, db.ui);
 if (ui.date !== todayISO() && !db.ui.pinDate) ui.date = todayISO();
 
 const $view = document.getElementById('view');
@@ -343,7 +343,7 @@ function el(tag, attrs = {}, children = []) {
 }
 
 function persistUI() {
-  db.ui = { tab: ui.tab, group: ui.group, blockId: ui.blockId, testId: ui.testId, pinDate: ui.pinDate };
+  db.ui = { tab: ui.tab, group: ui.group, blockId: ui.blockId, testId: ui.testId, pinDate: ui.pinDate, historyAthlete: ui.historyAthlete };
   save();
 }
 
@@ -886,6 +886,96 @@ function screenRoster() {
   return frag;
 }
 
+// LOTE 5 §3: "el modelo de seco ya guarda toda la temporada y no hay una sola pantalla que lo
+// enseñe". db.records ya trae fecha/prueba/métrica/valor por atleta — esta pantalla no añade
+// almacenamiento nuevo, solo lo reagrupa por nadadora y lo pinta. Elegir a quién ver es
+// independiente del selector de grupo de arriba (que solo filtra la pestaña Sesión): se puede
+// mirar el historial de cualquier nadadora de cualquier grupo sin cambiarlo.
+function recordsForAthlete(code) {
+  return Object.values(db.records).filter((r) => r.a === code);
+}
+
+function screenHistory() {
+  const frag = document.createDocumentFragment();
+  frag.appendChild(el('h2', { text: t('historyTitle') }));
+  frag.appendChild(el('p', { class: 'note', text: t('historyNote') }));
+
+  const all = db.athletes.slice().sort((a, b) => a.code.localeCompare(b.code));
+  if (!all.length) {
+    frag.appendChild(el('div', { class: 'criterion', text: t('historyNoAthletes', { rosterTab: t('navRoster') }) }));
+    return frag;
+  }
+
+  const picker = el('div', { class: 'fields' });
+  for (const a of all) {
+    picker.appendChild(el('button', {
+      class: 'pill' + (ui.historyAthlete === a.code ? ' ok' : '') + (a.active === false ? ' blocked' : ''),
+      type: 'button', text: a.code,
+      onclick: () => go({ historyAthlete: a.code }),
+    }));
+  }
+  frag.appendChild(picker);
+
+  const code = all.some((a) => a.code === ui.historyAthlete) ? ui.historyAthlete : null;
+  if (!code) {
+    frag.appendChild(el('p', { class: 'note', text: t('historyPickAthlete') }));
+    return frag;
+  }
+
+  const records = recordsForAthlete(code);
+  if (!records.length) {
+    frag.appendChild(el('div', { class: 'criterion', text: t('historyEmptyForAthlete', { code }) }));
+    return frag;
+  }
+
+  // TESTS ya viene en el orden fijo de la batería (movilidad → control → fuerza → potencia →
+  // resistencia) — se reutiliza tal cual para que el historial lea en el mismo orden que
+  // cualquier otra pantalla de la app.
+  for (const test of TESTS) {
+    const testRecords = records.filter((r) => r.t === test.id);
+    if (!testRecords.length) continue;
+
+    // Solo las métricas con algún dato de esta nadadora: una prueba de 6-8 métricas no
+    // necesita 6-8 columnas si aquí solo se ha rellenado una.
+    const metricsPresent = test.metrics.filter((m) => testRecords.some((r) => r.m === m.csv));
+    const dates = [...new Set(testRecords.map((r) => r.d))].sort();
+
+    frag.appendChild(el('h3', { text: test.label }));
+    const scroll = el('div', { class: 'table-scroll' });
+    const table = el('table', { class: 'history' });
+    const headRow = el('tr');
+    headRow.appendChild(el('th', { text: t('historyDateColumn') }));
+    for (const m of metricsPresent) headRow.appendChild(el('th', { text: m.unit ? `${m.label} (${m.unit})` : m.label }));
+    table.appendChild(el('thead', {}, [headRow]));
+
+    const tbody = el('tbody');
+    for (const d of dates) {
+      const row = el('tr');
+      // El aparato se congela por fila (§5 del LOTE 1): si alguna medición de este día lo
+      // llevaba, se muestra junto a la fecha — es lo que distingue una serie de espaldera de
+      // una de barra cuando se compara diciembre contra septiembre.
+      const withApparatus = testRecords.find((r) => r.d === d && r.ap);
+      row.appendChild(el('td', { text: withApparatus ? `${d} · ${withApparatus.ap}` : d }));
+      for (const m of metricsPresent) {
+        const rec = testRecords.find((r) => r.d === d && r.m === m.csv);
+        row.appendChild(el('td', { text: rec ? String(rec.v) : '—' }));
+      }
+      tbody.appendChild(row);
+      const note = db.notes[testKey(d, code, test.id)];
+      if (note) {
+        const noteRow = el('tr', { class: 'history-note' });
+        noteRow.appendChild(el('td', { text: note, colspan: String(metricsPresent.length + 1) }));
+        tbody.appendChild(noteRow);
+      }
+    }
+    table.appendChild(tbody);
+    scroll.appendChild(table);
+    frag.appendChild(scroll);
+  }
+
+  return frag;
+}
+
 function screenExport() {
   const frag = document.createDocumentFragment();
   const total = Object.keys(db.records).length;
@@ -1008,6 +1098,7 @@ function render() {
     else $view.appendChild(screenTests(block));
   } else if (ui.tab === 'athome') $view.appendChild(screenAtHome());
   else if (ui.tab === 'roster') $view.appendChild(screenRoster());
+  else if (ui.tab === 'history') $view.appendChild(screenHistory());
   else $view.appendChild(screenExport());
 }
 
@@ -1015,7 +1106,7 @@ function render() {
 // sala) no cambian con la navegación — se fijan una vez al arrancar, no en cada render().
 // Segunda mitad del punto 1 del LOTE 5: index.html deja de llevar texto en español propio,
 // para que una segunda batería (otro club, otro deporte) no tenga que tocar el HTML.
-const NAV_LABEL_KEY = { session: 'navSession', athome: 'navAtHome', roster: 'navRoster', export: 'navExport' };
+const NAV_LABEL_KEY = { session: 'navSession', athome: 'navAtHome', roster: 'navRoster', history: 'navHistory', export: 'navExport' };
 function applyStrings() {
   document.title = t('appTitle');
   const appNameMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');

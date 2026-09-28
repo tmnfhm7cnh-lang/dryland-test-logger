@@ -389,6 +389,7 @@ const BATTERY_AQUAMAD = {
     navSession: 'Sesión',
     navAtHome: 'En casa',
     navRoster: 'Nadadoras',
+    navHistory: 'Historial',
     navExport: 'Exportar',
 
     watchTitle: 'Cronómetro',
@@ -437,6 +438,14 @@ const BATTERY_AQUAMAD = {
     athleteActive: 'activa',
     athleteInactive: 'de baja',
     fieldGroupLabel: 'Grupo',
+
+    historyTitle: 'Historial',
+    historyNote: 'Toda la temporada de una nadadora, prueba por prueba. Los datos ya estaban guardados: esto solo los enseña.',
+    historyNoAthletes: 'Todavía no hay ninguna nadadora dada de alta. Ve a la pestaña {rosterTab} y añade alguna.',
+    historyPickAthlete: 'Toca un código arriba para ver su historial.',
+    historyEmptyForAthlete: '{code} no tiene ninguna medición guardada todavía.',
+    historyDateColumn: 'Fecha',
+
     evaluatorHeader: 'Evaluador',
     evaluatorFieldLabel: 'Iniciales que van a la columna evaluador',
     evaluatorNote: 'Solo iniciales (p. ej. DJ), nunca el nombre completo.',
