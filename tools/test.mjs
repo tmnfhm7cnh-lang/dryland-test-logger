@@ -82,9 +82,16 @@ const sandbox = {
     removeItem: (k) => store.delete(k),
   },
   navigator: { serviceWorker: undefined },
-  location: { protocol: 'file:' },
+  // href/search plain and empty, same spirit as protocol: 'file:' above — no real navigation
+  // happens in this stub, so applyIncomingMeasurement (LOTE 5 §4) just finds nothing to apply.
+  location: { protocol: 'file:', href: 'file:///dryland-test-logger/index.html', search: '' },
+  history: { replaceState: () => {} },
   console, setTimeout, clearTimeout, setInterval, clearInterval, Date, Math, JSON, parseInt, parseFloat, isNaN, String, Number, Object, Array, Map, Set, alert: () => {}, confirm: () => true,
-  URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
+  // Real URL/URLSearchParams (Node globals) so LOTE 5 §4's angle-lab bridge parses and builds
+  // links exactly as a browser would; createObjectURL/revokeObjectURL are grafted on since
+  // app.js also uses URL for that (browser-only, Node's own URL doesn't have them).
+  URL: Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL() {} }),
+  URLSearchParams,
   File: class {},
 };
 sandbox.globalThis = sandbox;

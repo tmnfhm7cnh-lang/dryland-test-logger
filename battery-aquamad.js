@@ -116,7 +116,7 @@ const BATTERY_AQUAMAD = {
         { csv: 'pubis_suelo_frontal', label: 'Frontal', type: 'cm', unit: 'cm' },
         { csv: 'oversplit_der', label: 'Over-split der.', type: 'cm', unit: 'cm', second: true },
         { csv: 'oversplit_izq', label: 'Over-split izq.', type: 'cm', unit: 'cm', second: true },
-        { csv: 'flexion_rodilla', label: 'Flexión de rodilla', type: 'deg', unit: 'grados', atHome: true },
+        { csv: 'flexion_rodilla', label: 'Flexión de rodilla', type: 'deg', unit: 'grados', atHome: true, guide: true },
       ],
       asymmetry: ['pubis_suelo_der', 'pubis_suelo_izq'],
     },
@@ -133,9 +133,11 @@ const BATTERY_AQUAMAD = {
         { csv: 'tiempo', label: 'Mantenimiento', type: 'seconds', unit: 's', second: true },
         { csv: 'distancia_manos_pies', label: 'Manos–pies', type: 'cm', unit: 'cm', second: true },
         { csv: 'altura_cadera', label: 'Altura de cadera', type: 'cm', unit: 'cm', second: true },
+        // desviacion_brazo no lleva guide: angle-lab todavía no tiene la clase de medida
+        // "ángulo entre dos rectas / referencia vertical" que ese ángulo necesita (LOTE 5 §2).
         { csv: 'desviacion_brazo', label: 'Desviación del brazo', type: 'deg', unit: 'grados', atHome: true },
-        { csv: 'flexion_codo', label: 'Flexión de codo', type: 'deg', unit: 'grados', atHome: true },
-        { csv: 'flexion_rodilla', label: 'Flexión de rodilla', type: 'deg', unit: 'grados', atHome: true },
+        { csv: 'flexion_codo', label: 'Flexión de codo', type: 'deg', unit: 'grados', atHome: true, guide: true },
+        { csv: 'flexion_rodilla', label: 'Flexión de rodilla', type: 'deg', unit: 'grados', atHome: true, guide: true },
       ],
     },
     {
@@ -150,10 +152,13 @@ const BATTERY_AQUAMAD = {
         { csv: 'apto', label: 'Resultado', type: 'level', unit: 'nivel', rubric: 'apto' },
         { csv: 'foto_lateral', label: 'Foto hecha', type: 'flag', unit: 'si/no' },
         { csv: 'tiempo', label: 'Mantenimiento', type: 'seconds', unit: 's', second: true },
+        // altura_pie_der/izq no llevan guide: son DISTANCE, y sin la interfaz de calibración
+        // de F6 saldrían siempre en píxeles sin calibrar — mismo límite que flexion.profundidad
+        // (que sí se decidió construir igual), pero aquí no se ha vuelto a preguntar.
         { csv: 'altura_pie_der', label: 'Altura pie der.', type: 'cm', unit: 'cm', atHome: true },
         { csv: 'altura_pie_izq', label: 'Altura pie izq.', type: 'cm', unit: 'cm', atHome: true },
         { csv: 'desviacion_brazo', label: 'Desviación del brazo', type: 'deg', unit: 'grados', atHome: true },
-        { csv: 'flexion_rodilla', label: 'Flexión de rodilla', type: 'deg', unit: 'grados', atHome: true },
+        { csv: 'flexion_rodilla', label: 'Flexión de rodilla', type: 'deg', unit: 'grados', atHome: true, guide: true },
       ],
     },
     {
@@ -188,7 +193,7 @@ const BATTERY_AQUAMAD = {
       criterion: 'Criterio oficial: 10" en posición de V, piernas y brazos estirados.',
       metrics: [
         { csv: 'tiempo', label: 'Tiempo', type: 'seconds', unit: 's' },
-        { csv: 'angulo_v', label: 'Ángulo de la V', type: 'deg', unit: 'grados', atHome: true },
+        { csv: 'angulo_v', label: 'Ángulo de la V', type: 'deg', unit: 'grados', atHome: true, guide: true },
       ],
     },
     {
@@ -234,7 +239,7 @@ const BATTERY_AQUAMAD = {
         { csv: 'aguante_atras_der', label: 'Atrás der.', type: 'seconds', unit: 's' },
         { csv: 'aguante_atras_izq', label: 'Atrás izq.', type: 'seconds', unit: 's' },
         { csv: 'nivel_apoyo', label: 'Nivel de apoyo', type: 'level', unit: 'nivel', rubric: 'support', second: true },
-        { csv: 'angulo_caida_atras', label: 'Ángulo real atrás', type: 'deg', unit: 'grados', atHome: true },
+        { csv: 'angulo_caida_atras', label: 'Ángulo real atrás', type: 'deg', unit: 'grados', atHome: true, guide: true },
       ],
     },
     {
@@ -262,7 +267,7 @@ const BATTERY_AQUAMAD = {
         { csv: 'reps', label: 'Reps válidas', type: 'reps', unit: 'reps' },
         { csv: 'altura_plano', label: 'Altura del plano', type: 'cm', unit: 'cm' },
         { csv: 'excentrica', label: 'Excéntrica controlada', type: 'seconds', unit: 's', second: true },
-        { csv: 'profundidad', label: 'Profundidad pecho–suelo', type: 'cm', unit: 'cm', atHome: true },
+        { csv: 'profundidad', label: 'Profundidad pecho–suelo', type: 'cm', unit: 'cm', atHome: true, guide: true },
       ],
     },
     {
@@ -280,7 +285,7 @@ const BATTERY_AQUAMAD = {
         { csv: 'reps', label: 'Reps sobre 90°', type: 'reps', unit: 'reps' },
         { csv: 'tiempo_carpa', label: 'Carpa', type: 'seconds', unit: 's' },
         { csv: 'tiempo_colgada', label: 'Agarre (total colgada)', type: 'seconds', unit: 's' },
-        { csv: 'angulo_maximo', label: 'Ángulo máximo', type: 'deg', unit: 'grados', atHome: true },
+        { csv: 'angulo_maximo', label: 'Ángulo máximo', type: 'deg', unit: 'grados', atHome: true, guide: true },
       ],
     },
     {
@@ -428,6 +433,7 @@ const BATTERY_AQUAMAD = {
     atHomeNote: 'Lo que sale del vídeo, de la foto o de My Jump Lab. Pásalo el mismo día: My Jump Lab no guarda tu serie de forma recuperable.',
     atHomeEmpty: 'Nada pendiente. Aquí aparecerán las alturas de salto, los grados del puente y los ángulos en cuanto captures algo en sesión.',
     atHomeSkip: 'no aplica',
+    atHomeAnalyze: 'Analizar en angle-lab',
 
     rosterTitle: 'Nadadoras',
     rosterNote: 'Solo códigos. El mapa código ↔ nombre vive en papel, en tu carpeta, nunca aquí. Cada grupo tiene su rango reservado —{ranges}— igual que las hojas impresas, y un código no se reutiliza jamás.',

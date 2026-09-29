@@ -540,6 +540,57 @@ function flagField(value, commit) {
   return b;
 }
 
+/* --------------------------------------------------------- angle-lab bridge (LOTE 5 §4) */
+
+// `metric.guide` (battery-aquamad.js) marks the atHome metrics that also have a named-landmark
+// guide in angle-lab (export/guides.js + export/batteryTags.js) — the guideId is literally
+// test.id and the plan key is literally metric.csv, comprobado contra battery-aquamad.js, not
+// assumed. `return` carries the exact cell back so angle-lab never has to know the battery
+// beyond the one test/metric pair it was sent for.
+function angleLabUrl(date, athlete, groupId, testId, metricCsv) {
+  const back = new URL(location.href);
+  back.search = '';
+  back.searchParams.set('tab', 'athome');
+  back.searchParams.set('recvDate', date);
+  back.searchParams.set('recvAthlete', athlete);
+  back.searchParams.set('recvGroup', groupId);
+  back.searchParams.set('recvTest', testId);
+  back.searchParams.set('recvMetric', metricCsv);
+
+  const target = new URL('../angle-lab/', location.href);
+  target.searchParams.set('subject', athlete);
+  target.searchParams.set('guide', testId);
+  target.searchParams.set('metric', metricCsv);
+  target.searchParams.set('return', back.toString());
+  return target.toString();
+}
+
+// Same tab, never a redirect back automáticamente — el botón "Enviar a seco" de angle-lab es
+// quien decide cuándo (y si) vuelve, para que Daniel pueda revisar el número antes. Ver
+// ESTADO.md, LOTE 5 §4.
+function applyIncomingMeasurement() {
+  const params = new URLSearchParams(location.search);
+  const value = params.get('value');
+  if (value === null) return;
+  const recvDate = params.get('recvDate');
+  const recvAthlete = params.get('recvAthlete');
+  const recvGroup = params.get('recvGroup');
+  const recvTest = params.get('recvTest');
+  const recvMetric = params.get('recvMetric');
+  const test = recvTest ? TEST_BY_ID[recvTest] : null;
+  const metric = test ? test.metrics.find((m) => m.csv === recvMetric) : null;
+  if (recvDate && recvAthlete && recvGroup && test && metric) {
+    // Mismo redondeo que la entrada manual (roundFor), para que un valor que llega de
+    // angle-lab nunca se distinga en el CSV de uno tecleado a mano.
+    const rounded = roundFor(metric.type, value);
+    if (rounded !== '') setVal(recvDate, recvAthlete, recvGroup, recvTest, recvMetric, rounded);
+    ui.tab = 'athome';
+  }
+  const clean = new URL(location.href);
+  clean.search = '';
+  history.replaceState(null, '', clean.toString());
+}
+
 function fieldFor(metric, date, athlete, groupId, test) {
   const value = getVal(date, athlete, test.id, metric.csv);
   const commit = (v) => setVal(date, athlete, groupId, test.id, metric.csv, v);
@@ -547,6 +598,12 @@ function fieldFor(metric, date, athlete, groupId, test) {
   if (metric.type === 'flag') box.appendChild(flagField(value, commit));
   else if (metric.type === 'level' || metric.type === 'rpe') box.appendChild(levelField(metric, value, commit));
   else box.appendChild(numberField(metric, value, commit, key(date, athlete, test.id, metric.csv)));
+  if (metric.guide) {
+    box.appendChild(el('button', {
+      class: 'pill', type: 'button', text: t('atHomeAnalyze'),
+      onclick: () => { location.href = angleLabUrl(date, athlete, groupId, test.id, metric.csv); },
+    }));
+  }
   return box;
 }
 
@@ -1150,4 +1207,6 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch((err) => console.warn('sw', err));
 }
 
+applyIncomingMeasurement();
+persistUI();
 render();
