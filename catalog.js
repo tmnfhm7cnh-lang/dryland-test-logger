@@ -40,6 +40,14 @@ const TESTS = BATTERY_AQUAMAD.tests.map((t) => ({
 
 const TEST_BY_ID = Object.fromEntries(TESTS.map((t) => [t.id, t]));
 
+// LOTE 5 §6, paquete de cumplimiento: fecha de fin de temporada para el aviso de retención.
+// Nunca borra sola — Daniel decidió avisar y esperar confirmación, dado que ni esta app ni
+// angle-lab tienen copia en la nube (ver render()'s season banner en app.js). El contrato dice
+// "septiembre-mayo, posible junio" (contratacion-club.md): se toma el extremo tardío para no
+// avisar antes de tiempo si se alarga a junio. Confirmar con Daniel cuando se acerque la fecha,
+// por si el club cierra antes o después de lo previsto.
+const SEASON_END = '2027-06-30';
+
 const ENTRY_BLOCKS = [
   { id: 'alevin-s1', group: 'alevin', label: 'Sesión 1 · Test de entrada', hint: 'jue 10-sep', tests: ['hollow', 'plancha', 'rpe'] },
   { id: 'alevin-s2', group: 'alevin', label: 'Sesión 2 · Test de entrada', hint: 'mar 15-sep', tests: ['espagat', 'puente', 'rpe'] },

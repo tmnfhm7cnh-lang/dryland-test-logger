@@ -416,8 +416,12 @@ const BATTERY_AQUAMAD = {
     apparatusMissingWarning: '🔴 Di en qué aparato se mide, antes de apuntar',
     apparatusChosen: 'Aparato: {name}',
     apparatusNote: 'Va a la columna instrumento del CSV. Una elevación en espaldera y una en barra no son el mismo gesto: sin este dato, en diciembre no sabrás si cambió la nadadora o el aparato.',
-    asymmetryHigh: 'Asimetría: {diff} cm — diferencia grande entre lados',
-    asymmetryNormal: 'Asimetría: {diff} cm',
+    // LOTE 5 §6: era dos cadenas ("grande entre lados" a partir de 5 cm) — el prompt maestro
+    // exige que la app "mida y reporte, no diagnostique ni recomiende", y calificar una cifra de
+    // "grande" es ya un juicio, no una medida. Una sola cadena, la cifra sola; el color de aviso
+    // (.asym.high en index.html) se queda como señal visual neutra, mismo trato que el semáforo
+    // de calidad de angle-lab.
+    asymmetryDiff: 'Asimetría: {diff} cm',
     moreWithVideo: 'Más métricas, vídeo, nota e intentos',
     moreNoVideo: 'Más métricas, nota e intentos',
     atHomeTagSuffix: ' · de vídeo',
@@ -474,11 +478,22 @@ const BATTERY_AQUAMAD = {
     wipeArm: 'Pulsa otra vez para borrar {total} mediciones y {n} nadadoras',
     wipeConfirm: 'Se borran {total} mediciones y {n} nadadoras. ¿Seguro?',
 
+    // LOTE 5 §6, paquete de cumplimiento: "mide y reporta, no diagnostica ni recomienda" del
+    // prompt maestro. Cierto sin excepciones desde que asymmetryDiff dejó de calificar la cifra.
+    intendedUseNote: 'Esta app mide y registra lo que se le apunta. No diagnostica ni recomienda: las cifras y los avisos (asimetría, umbrales) son descriptivos — la decisión es siempre tuya.',
+
+    deleteAthleteButton: 'Borrar datos',
+    deleteAthleteConfirm: 'Se borran {n} mediciones de {code}. Su código queda retirado para siempre, nunca se reutiliza. No hay deshacer: exporta antes si hay algo que quieras conservar. ¿Seguro?',
+
     storageCorruptBanner: 'El almacenamiento del teléfono estaba dañado: se ha empezado de cero. El original se conserva sin tocar bajo otra clave — avísame antes de seguir.',
     unexportedBanner: '{n} mediciones sin exportar. Comparte el CSV al acabar la sesión.',
     unexportedChangesBanner: 'Hay cambios sin exportar (nota, aparato, intentos o evaluador). Comparte el CSV al acabar la sesión.',
     missingApparatusBanner: 'Falta declarar el aparato de colgada en: {where}. Sin él, esas filas salen con la columna instrumento vacía.',
     orphansBanner: '{n} fila(s) de una prueba que ya no está en el catálogo. Revísalas en Exportar.',
+    seasonEndedBanner: 'La temporada terminó el {end}. ¿Borras los datos de la temporada, o prefieres esperar?',
+    seasonPurgeButton: 'Borrar datos de la temporada',
+    seasonSnoozeButton: 'Recordarlo en 30 días',
+    seasonPurgeConfirm: 'Se borran {total} mediciones y {n} nadadoras de la temporada terminada. No hay deshacer: exporta antes si hay algo que quieras conservar. ¿Seguro?',
 
     saveFailedAlert: 'No se ha podido guardar en el teléfono. Exporta ya el CSV antes de seguir.',
     flagDone: '✓ hecho',

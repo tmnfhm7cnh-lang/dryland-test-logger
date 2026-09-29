@@ -23,7 +23,9 @@ function blankDB() {
   // resume them instead of losing the hold in progress — see restoreLiveWatches().
   // `lastWrite` is a single clock bumped by every mutation that changes what the CSV exports
   // (a record, a note, an apparatus, an evaluator), independent of any one record's own `at`.
-  return { version: 1, evaluator: 'DJ', athletes: [], codesUsed: [], records: {}, notes: {}, attempts: {}, skipped: {}, apparatus: {}, lastExport: 0, lastWrite: 0, ui: {}, liveWatches: {} };
+  // `seasonPurgeSnoozeUntil` (LOTE 5 §6): fecha ISO hasta la que el banner de fin de temporada
+  // se calla sin haber borrado nada — la única otra salida es el propio botón de purga.
+  return { version: 1, evaluator: 'DJ', athletes: [], codesUsed: [], records: {}, notes: {}, attempts: {}, skipped: {}, apparatus: {}, lastExport: 0, lastWrite: 0, ui: {}, liveWatches: {}, seasonPurgeSnoozeUntil: null };
 }
 
 // Set when load() finds a store it could not parse. Kept for the whole session so render()
@@ -136,6 +138,54 @@ function claimCode(groupId) {
   const code = nextCode(groupId);
   (db.codesUsed ||= []).push(parseInt(code.slice(ATHLETE_CODE_PREFIX.length), 10));
   return code;
+}
+
+/* --------------------------------------------------------- LOTE 5 §6, borrado y retención */
+
+// Todos los mapas que llevan el código de la nadadora lo llevan como segundo campo, separado
+// por "|" — mismo formato que key()/testKey() de arriba. keysForAthlete() aísla ese trozo común
+// en vez de repetir el split en cada llamador.
+function keysForAthlete(map, code) {
+  return Object.keys(map).filter((k) => k.split('|')[1] === code);
+}
+
+function recordCountFor(code) {
+  return keysForAthlete(db.records, code).length;
+}
+
+// Borra los datos de UNA nadadora — mediciones, notas, intentos, saltos y cronómetros vivos —
+// sin tocar codesUsed: su código queda retirado para siempre, igual que si se hubiera dado de
+// baja (§2 del LOTE 1), nunca se le presta a otra. Distinto de "Empezar de cero" (wipeAllData),
+// que borra a todo el mundo.
+function deleteAthleteData(code) {
+  for (const k of keysForAthlete(db.records, code)) delete db.records[k];
+  for (const k of keysForAthlete(db.notes, code)) delete db.notes[k];
+  for (const k of keysForAthlete(db.attempts, code)) delete db.attempts[k];
+  for (const k of keysForAthlete(db.skipped, code)) delete db.skipped[k];
+  for (const k of keysForAthlete(db.liveWatches, code)) delete db.liveWatches[k];
+  db.athletes = db.athletes.filter((a) => a.code !== code);
+  touch();
+  save();
+}
+
+// El cuerpo real de "Empezar de cero" (Exportar) y del botón de purga de temporada (banner de
+// fin de temporada) — la misma operación, dos disparadores. El cementerio de códigos no se borra
+// con el resto: un código no se reutiliza jamás, ni siquiera tras esto. usedNumbers() ya suma
+// codesUsed y los códigos de las propias nadadoras que se están a punto de borrar — ver §3 del
+// LOTE 1.
+function wipeAllData() {
+  const graveyard = [...usedNumbers()];
+  Object.assign(db, blankDB(), { codesUsed: graveyard });
+  localStorage.removeItem(STORE_KEY);
+  save();
+}
+
+// LOTE 5 §6: SEASON_END vive en catalog.js, junto a ENTRY_BLOCKS — es calendario de este club
+// esta temporada, no de la batería. Nunca dispara un borrado por sí sola: solo enciende el
+// banner de aviso en render(), que espera una confirmación explícita (decisión de Daniel,
+// 2026-09-29 — ninguna de las dos apps tiene copia en la nube).
+function seasonEnded() {
+  return todayISO() > SEASON_END;
 }
 
 // The apparatus is a property of the session, not of the athlete: on paper it is one field in
@@ -779,7 +829,7 @@ function screenTestDetail(block, test) {
       const [x, y] = test.asymmetry.map((c) => getVal(ui.date, a.code, test.id, c));
       if (x !== '' && y !== '') {
         const diff = Math.abs(x - y);
-        row.appendChild(el('div', { class: 'asym' + (diff >= 5 ? ' high' : ''), text: t(diff >= 5 ? 'asymmetryHigh' : 'asymmetryNormal', { diff }) }));
+        row.appendChild(el('div', { class: 'asym' + (diff >= 5 ? ' high' : ''), text: t('asymmetryDiff', { diff }) }));
       }
     }
 
@@ -923,7 +973,15 @@ function screenRoster() {
           render();
         },
       });
-      card.appendChild(el('div', { class: 'who' }, [el('span', { class: 'code', text: a.code }), toggle]));
+      const del = el('button', {
+        class: 'pill blocked', type: 'button', text: t('deleteAthleteButton'),
+        onclick: () => {
+          if (!confirm(t('deleteAthleteConfirm', { code: a.code, n: recordCountFor(a.code) }))) return;
+          deleteAthleteData(a.code);
+          render();
+        },
+      });
+      card.appendChild(el('div', { class: 'who' }, [el('span', { class: 'code', text: a.code }), toggle, del]));
       card.appendChild(el('div', { class: 'fields' }, [el('div', { class: 'field' }, [el('label', { text: t('fieldGroupLabel') }), move])]));
       frag.appendChild(card);
     }
@@ -1105,16 +1163,12 @@ function screenExport() {
       render();
       return;
     }
-    // El cementerio de códigos no se borra con el resto: un código no se reutiliza jamás,
-    // ni siquiera tras un "empezar de cero". usedNumbers() ya suma codesUsed y los códigos
-    // de las propias nadadoras que se están a punto de borrar — ver §3 del LOTE 1.
-    const graveyard = [...usedNumbers()];
-    Object.assign(db, blankDB(), { codesUsed: graveyard });
-    localStorage.removeItem(STORE_KEY);
-    save();
+    wipeAllData();
     go({ tab: 'roster', blockId: null, testId: null });
   });
   frag.appendChild(wipe);
+
+  frag.appendChild(el('p', { class: 'note', text: t('intendedUseNote') }));
   return frag;
 }
 
@@ -1145,6 +1199,37 @@ function render() {
   }
   const orphans = orphanRecords();
   if (orphans.length) $banner.appendChild(el('div', { class: 'banner warn', text: t('orphansBanner', { n: orphans.length }) }));
+
+  // LOTE 5 §6: nunca borra sola — Daniel decidió avisar y esperar confirmación (ninguna de las
+  // dos apps tiene copia en la nube). Se repite en cada render mientras no se posponga o se
+  // borre; "Recordarlo en 30 días" es la única forma de silenciarlo sin borrar nada.
+  if (seasonEnded() && (!db.seasonPurgeSnoozeUntil || db.seasonPurgeSnoozeUntil < todayISO())) {
+    const total = Object.keys(db.records).length;
+    const n = db.athletes.length;
+    const banner = el('div', { class: 'banner warn' }, [
+      el('span', { text: t('seasonEndedBanner', { end: SEASON_END }) }),
+      el('button', {
+        class: 'pill blocked', type: 'button', text: t('seasonPurgeButton'),
+        onclick: () => {
+          if (!confirm(t('seasonPurgeConfirm', { total, n }))) return;
+          wipeAllData();
+          go({ tab: 'roster', blockId: null, testId: null });
+        },
+      }),
+      el('button', {
+        class: 'pill', type: 'button', text: t('seasonSnoozeButton'),
+        onclick: () => {
+          const d = new Date();
+          d.setDate(d.getDate() + 30);
+          db.seasonPurgeSnoozeUntil = d.toISOString().slice(0, 10);
+          touch();
+          save();
+          render();
+        },
+      }),
+    ]);
+    $banner.appendChild(banner);
+  }
 
   $view.innerHTML = '';
   if (ui.tab === 'session') {

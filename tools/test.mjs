@@ -547,5 +547,88 @@ check('el resumen de rangos de Nadadoras sale de GROUPS, no de un texto fijo',
   ev(`GROUPS.map((g) => g.label + ' ' + String(g.start).padStart(2,'0') + '-' + String(g.start+g.size-1).padStart(2,'0')).join(', ')`),
   'Alevín 01-12, Infantil 13-22, Junior 23-28');
 
+console.log('\n== 10. LOTE 5 §6, paquete de cumplimiento (2026-09-29) ==');
+
+console.log('\n-- 10a. borrar una nadadora borra solo lo suyo, y su código no vuelve a repartirse --');
+ev(`db.athletes = []; db.codesUsed = []; db.records = {}; db.notes = {}; db.attempts = {}; db.skipped = {}; db.liveWatches = {};
+for (let i=0;i<3;i++) db.athletes.push({code: claimCode('alevin'), group:'alevin', active:true});
+setVal('2026-09-22','ATL-01','alevin','hollow','tiempo',12.4);
+setVal('2026-09-22','ATL-02','alevin','hollow','tiempo',10.1);
+db.notes['2026-09-22|ATL-01|hollow'] = 'nota de ATL-01';
+db.attempts['2026-09-22|ATL-01|hollow'] = 2;
+db.skipped['2026-09-22|ATL-01|hollow|tiempo'] = true;
+db.liveWatches['2026-09-22|ATL-01|hollow|tiempo'] = Date.now();
+deleteAthleteData('ATL-01');`);
+check('sus mediciones desaparecen', ev(`Object.keys(db.records).filter(k=>k.split('|')[1]==='ATL-01')`), []);
+check('las de otra nadadora no se tocan', ev(`Object.keys(db.records).filter(k=>k.split('|')[1]==='ATL-02').length`), 1);
+check('sus notas, intentos, saltos y cronómetros vivos también desaparecen',
+  [ev(`Object.keys(db.notes).some(k=>k.split('|')[1]==='ATL-01')`), ev(`Object.keys(db.attempts).some(k=>k.split('|')[1]==='ATL-01')`),
+   ev(`Object.keys(db.skipped).some(k=>k.split('|')[1]==='ATL-01')`), ev(`Object.keys(db.liveWatches).some(k=>k.split('|')[1]==='ATL-01')`)],
+  [false, false, false, false]);
+check('sale del roster', ev(`db.athletes.some(a=>a.code==='ATL-01')`), false);
+check('pero su código queda retirado para siempre: la siguiente nadadora no lo hereda', ev(`claimCode('alevin')`), 'ATL-04');
+const rosterAfterDelete = paint('screenRoster()');
+check('el botón de borrar aparece en el registro', /Borrar datos/.test(rosterAfterDelete), true);
+
+console.log('\n-- 10b. wipeAllData() sigue conservando el cementerio de códigos --');
+ev(`db.athletes = []; db.codesUsed = [];
+for (let i=0;i<2;i++) db.athletes.push({code: claimCode('alevin'), group:'alevin', active:true});
+setVal('2026-09-22', db.athletes[0].code, 'alevin', 'hollow', 'tiempo', 9);
+wipeAllData();`);
+check('sin mediciones tras la purga', ev('Object.keys(db.records).length'), 0);
+check('sin nadadoras tras la purga', ev('db.athletes.length'), 0);
+check('el cementerio de códigos sobrevive a wipeAllData, igual que a "Empezar de cero"', ev('db.codesUsed'), [1, 2]);
+check('los códigos ya usados no vuelven: la siguiente nadadora empieza en el 3', ev(`claimCode('alevin')`), 'ATL-03');
+
+console.log('\n-- 10c. el banner de fin de temporada avisa y espera, nunca borra solo --');
+ev(`db.athletes = []; db.codesUsed = []; db.records = {}; db.seasonPurgeSnoozeUntil = null;
+db.athletes.push({code: claimCode('alevin'), group:'alevin', active:true});
+setVal('2026-09-22', db.athletes[0].code, 'alevin', 'hollow', 'tiempo', 9);`);
+check('SEASON_END es una fecha futura desde hoy en el sistema real (revisar antes de que llegue)', ev('seasonEnded()'), false);
+// La aritmética del "posponer 30 días" usa el reloj real (new Date()), no todayISO() — el
+// "hoy" simulado se elige justo después de SEASON_END, no una fecha absurdamente lejana, para
+// que "hoy real + 30 días" siga cayendo ANTES de este "hoy" simulado, como pasaría en la
+// realidad (la temporada terminó hace poco, no dentro de 70 años).
+const realTodayISO = new Date().toISOString().slice(0, 10);
+ev(`globalThis.__realToday = todayISO; globalThis.todayISO = () => '2027-07-15';`); // el día después de SEASON_END (2027-06-30)
+check('pasada la fecha de fin, seasonEnded() es cierto', ev('seasonEnded()'), true);
+ev('render()');
+let bannerTexts = texts(ev('$banner')).join(' | ');
+check('el banner de fin de temporada aparece', /La temporada termin/.test(bannerTexts), true);
+check('ofrece purgar y ofrece posponer, nunca borra por su cuenta', [/Borrar datos de la temporada/.test(bannerTexts), /Recordarlo en 30/.test(bannerTexts)], [true, true]);
+check('con los datos todavía intactos: el banner solo avisa', ev('Object.keys(db.records).length'), 1);
+
+findNode(ev('$banner'), (n) => n._text === 'Recordarlo en 30 días').click();
+check('posponer no borra nada', ev('Object.keys(db.records).length'), 1);
+check('posponer guarda una fecha futura de recordatorio (respecto al reloj real)', ev('db.seasonPurgeSnoozeUntil') > realTodayISO, true);
+
+// El botón usa el reloj real (new Date()) para sumar 30 días, no el todayISO() parcheado de
+// arriba — comprobar que ESE aplazamiento concreto silencia el banner exigiría parchear
+// también Date, no solo todayISO. Más simple y igual de real: fijar la fecha de aplazamiento
+// directamente por delante del "hoy" simulado, y comprobar que el banner calla sin borrar nada
+// — que es exactamente la condición que lee render() (línea del guard, arriba).
+ev(`db.seasonPurgeSnoozeUntil = '2027-08-14'; render();`); // por delante del todayISO() parcheado (2027-07-15)
+bannerTexts = texts(ev('$banner')).join(' | ');
+check('pospuesto por delante de "hoy", el banner se calla sin haber borrado nada',
+  [/La temporada termin/.test(bannerTexts), ev('Object.keys(db.records).length')], [false, 1]);
+
+ev('db.seasonPurgeSnoozeUntil = null; render();'); // "Daniel" confirma el borrado — sandbox.confirm ya es () => true por defecto
+findNode(ev('$banner'), (n) => n._text === 'Borrar datos de la temporada').click();
+check('confirmando desde el banner, sí purga (misma operación que "Empezar de cero")', ev('Object.keys(db.records).length'), 0);
+check('y conserva igualmente el cementerio de códigos', ev('db.codesUsed.length > 0'), true);
+ev('globalThis.todayISO = globalThis.__realToday;'); // deshacer el parche de fecha para el resto del arnés
+
+console.log('\n-- 10d. la asimetría reporta la cifra, sin calificarla de "grande" --');
+ev(`db.athletes = [{code:'ATL-01',group:'alevin',active:true}]; ui.group = 'alevin'; ui.date = '2026-09-22';
+setVal('2026-09-22','ATL-01','alevin','espagat','pubis_suelo_der',12);
+setVal('2026-09-22','ATL-01','alevin','espagat','pubis_suelo_izq',2);`);
+const sessionScreen = paint(`screenTestDetail({label:'x',tests:['espagat']}, TEST_BY_ID['espagat'])`);
+check('la cifra de asimetría sale', /Asimetría: 10 cm/.test(sessionScreen), true);
+check('sin la palabra "grande": mide y reporta, no interpreta (LOTE 5 §6)', /grande/.test(sessionScreen), false);
+
+console.log('\n-- 10e. la declaración de uso previsto vive en Exportar --');
+const exportScreenText = paint('screenExport()');
+check('"mide y registra... no diagnostica ni recomienda" aparece en Exportar', /No diagnostica ni recomienda/.test(exportScreenText), true);
+
 console.log(fails ? `\n${fails} COMPROBACIONES FALLIDAS` : '\ntodas las comprobaciones pasan');
 process.exit(fails ? 1 : 0);
